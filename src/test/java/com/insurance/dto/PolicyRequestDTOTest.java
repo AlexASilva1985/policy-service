@@ -21,6 +21,8 @@ class PolicyRequestDTOTest {
 
     private Validator validator;
     private PolicyRequestDTO policyRequestDTO;
+    private UUID customerId;
+    private UUID productId;
 
     @BeforeEach
     void setUp() {
@@ -28,9 +30,10 @@ class PolicyRequestDTOTest {
         validator = factory.getValidator();
         
         policyRequestDTO = new PolicyRequestDTO();
-        policyRequestDTO.setId(UUID.randomUUID());
-        policyRequestDTO.setCustomerId(UUID.randomUUID());
-        policyRequestDTO.setProductId(UUID.randomUUID());
+        customerId = UUID.randomUUID();
+        productId = UUID.randomUUID();
+        policyRequestDTO.setCustomerId(customerId);
+        policyRequestDTO.setProductId(productId);
         policyRequestDTO.setCategory(InsuranceCategory.AUTO);
         policyRequestDTO.setSalesChannel(SalesChannel.MOBILE);
         policyRequestDTO.setPaymentMethod(PaymentMethod.CREDIT_CARD);
@@ -57,8 +60,6 @@ class PolicyRequestDTOTest {
     @Test
     void testGettersAndSetters() {
         UUID id = UUID.randomUUID();
-        UUID customerId = UUID.randomUUID();
-        UUID productId = UUID.randomUUID();
         LocalDateTime createdAt = LocalDateTime.now();
         LocalDateTime finishedAt = LocalDateTime.now().plusDays(1);
         BigDecimal premium = BigDecimal.valueOf(200.00);
@@ -256,5 +257,162 @@ class PolicyRequestDTOTest {
         assertNotNull(dto.getAssistances());
         assertTrue(dto.getCoverages().isEmpty());
         assertTrue(dto.getAssistances().isEmpty());
+    }
+
+    @Test
+    void testAllInsuranceCategories() {
+        for (InsuranceCategory category : InsuranceCategory.values()) {
+            policyRequestDTO.setCategory(category);
+            assertEquals(category, policyRequestDTO.getCategory());
+        }
+    }
+
+    @Test
+    void testAllSalesChannels() {
+        for (SalesChannel channel : SalesChannel.values()) {
+            policyRequestDTO.setSalesChannel(channel);
+            assertEquals(channel, policyRequestDTO.getSalesChannel());
+        }
+    }
+
+    @Test
+    void testAllPaymentMethods() {
+        for (PaymentMethod method : PaymentMethod.values()) {
+            policyRequestDTO.setPaymentMethod(method);
+            assertEquals(method, policyRequestDTO.getPaymentMethod());
+        }
+    }
+
+    @Test
+    void testCoveragesMap() {
+        Map<String, BigDecimal> coverages = new HashMap<>();
+        coverages.put("Comprehensive", new BigDecimal("75000.00"));
+        coverages.put("Collision", new BigDecimal("25000.00"));
+        coverages.put("Medical", new BigDecimal("10000.00"));
+        
+        policyRequestDTO.setCoverages(coverages);
+        
+        assertEquals(3, policyRequestDTO.getCoverages().size());
+        assertEquals(new BigDecimal("75000.00"), policyRequestDTO.getCoverages().get("Comprehensive"));
+        assertEquals(new BigDecimal("25000.00"), policyRequestDTO.getCoverages().get("Collision"));
+        assertEquals(new BigDecimal("10000.00"), policyRequestDTO.getCoverages().get("Medical"));
+    }
+
+    @Test
+    void testEmptyCoveragesMap() {
+        policyRequestDTO.setCoverages(new HashMap<>());
+        
+        assertNotNull(policyRequestDTO.getCoverages());
+        assertTrue(policyRequestDTO.getCoverages().isEmpty());
+    }
+
+    @Test
+    void testAssistancesList() {
+        List<String> assistances = Arrays.asList(
+            "24/7 Roadside Assistance",
+            "Towing Service",
+            "Emergency Fuel Delivery",
+            "Tire Change Service",
+            "Battery Jump Start"
+        );
+        
+        policyRequestDTO.setAssistances(assistances);
+        
+        assertEquals(5, policyRequestDTO.getAssistances().size());
+        assertTrue(policyRequestDTO.getAssistances().contains("24/7 Roadside Assistance"));
+        assertTrue(policyRequestDTO.getAssistances().contains("Towing Service"));
+        assertTrue(policyRequestDTO.getAssistances().contains("Emergency Fuel Delivery"));
+    }
+
+    @Test
+    void testEmptyAssistancesList() {
+        policyRequestDTO.setAssistances(Arrays.asList());
+        
+        assertNotNull(policyRequestDTO.getAssistances());
+        assertTrue(policyRequestDTO.getAssistances().isEmpty());
+    }
+
+    @Test
+    void testBigDecimalValues() {
+        // Test various BigDecimal scenarios
+        policyRequestDTO.setTotalMonthlyPremiumAmount(new BigDecimal("99.99"));
+        policyRequestDTO.setInsuredAmount(new BigDecimal("1000000.00"));
+        
+        assertEquals(new BigDecimal("99.99"), policyRequestDTO.getTotalMonthlyPremiumAmount());
+        assertEquals(new BigDecimal("1000000.00"), policyRequestDTO.getInsuredAmount());
+        
+        // Test zero values
+        policyRequestDTO.setTotalMonthlyPremiumAmount(BigDecimal.ZERO);
+        assertEquals(BigDecimal.ZERO, policyRequestDTO.getTotalMonthlyPremiumAmount());
+        
+        // Test null values
+        policyRequestDTO.setTotalMonthlyPremiumAmount(null);
+        assertNull(policyRequestDTO.getTotalMonthlyPremiumAmount());
+    }
+
+    @Test
+    void testCompleteAutoInsuranceScenario() {
+        Map<String, BigDecimal> autoCoverages = new HashMap<>();
+        autoCoverages.put("Liability", new BigDecimal("100000.00"));
+        autoCoverages.put("Collision", new BigDecimal("50000.00"));
+        autoCoverages.put("Comprehensive", new BigDecimal("50000.00"));
+        autoCoverages.put("Personal Injury", new BigDecimal("20000.00"));
+        
+        List<String> autoAssistances = Arrays.asList(
+            "24/7 Roadside Assistance",
+            "Towing Service",
+            "Emergency Locksmith",
+            "Flat Tire Service"
+        );
+        
+        PolicyRequestDTO autoPolicy = new PolicyRequestDTO();
+        autoPolicy.setCustomerId(customerId);
+        autoPolicy.setProductId(productId);
+        autoPolicy.setCategory(InsuranceCategory.AUTO);
+        autoPolicy.setSalesChannel(SalesChannel.MOBILE);
+        autoPolicy.setPaymentMethod(PaymentMethod.CREDIT_CARD);
+        autoPolicy.setTotalMonthlyPremiumAmount(new BigDecimal("180.00"));
+        autoPolicy.setInsuredAmount(new BigDecimal("220000.00"));
+        autoPolicy.setCoverages(autoCoverages);
+        autoPolicy.setAssistances(autoAssistances);
+        
+        assertEquals(InsuranceCategory.AUTO, autoPolicy.getCategory());
+        assertEquals(SalesChannel.MOBILE, autoPolicy.getSalesChannel());
+        assertEquals(PaymentMethod.CREDIT_CARD, autoPolicy.getPaymentMethod());
+        assertEquals(4, autoPolicy.getCoverages().size());
+        assertEquals(4, autoPolicy.getAssistances().size());
+        assertTrue(autoPolicy.getCoverages().containsKey("Liability"));
+        assertTrue(autoPolicy.getAssistances().contains("24/7 Roadside Assistance"));
+    }
+
+    @Test
+    void testCompleteHomeInsuranceScenario() {
+        Map<String, BigDecimal> homeCoverages = new HashMap<>();
+        homeCoverages.put("Dwelling", new BigDecimal("500000.00"));
+        homeCoverages.put("Personal Property", new BigDecimal("250000.00"));
+        homeCoverages.put("Liability", new BigDecimal("300000.00"));
+        
+        List<String> homeAssistances = Arrays.asList(
+            "Emergency Home Repair",
+            "Temporary Housing",
+            "Security Monitoring"
+        );
+        
+        PolicyRequestDTO homePolicy = new PolicyRequestDTO();
+        homePolicy.setCustomerId(customerId);
+        homePolicy.setProductId(productId);
+        homePolicy.setCategory(InsuranceCategory.AUTO);
+        homePolicy.setSalesChannel(SalesChannel.WEBSITE);
+        homePolicy.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+        homePolicy.setTotalMonthlyPremiumAmount(new BigDecimal("250.00"));
+        homePolicy.setInsuredAmount(new BigDecimal("1050000.00"));
+        homePolicy.setCoverages(homeCoverages);
+        homePolicy.setAssistances(homeAssistances);
+        
+        assertEquals(InsuranceCategory.AUTO, homePolicy.getCategory());
+        assertEquals(SalesChannel.WEBSITE, homePolicy.getSalesChannel());
+        assertEquals(PaymentMethod.BANK_TRANSFER, homePolicy.getPaymentMethod());
+        assertEquals(3, homePolicy.getCoverages().size());
+        assertEquals(3, homePolicy.getAssistances().size());
     }
 } 

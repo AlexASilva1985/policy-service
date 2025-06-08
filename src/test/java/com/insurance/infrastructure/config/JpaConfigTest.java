@@ -1,29 +1,34 @@
 package com.insurance.infrastructure.config;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class JpaConfigTest {
 
     @Test
-    void testJpaConfigClassExists() {
-        // Verifica se a classe existe e pode ser instanciada
+    void testJpaConfigLoads() {
+        // Test that JpaConfig can be instantiated successfully
         JpaConfig jpaConfig = new JpaConfig();
         assertNotNull(jpaConfig);
     }
 
     @Test
-    void testJpaAuditingIsEnabled() {
-        // Verifica se a anotação @EnableJpaAuditing está presente
-        assertTrue(JpaConfig.class.isAnnotationPresent(EnableJpaAuditing.class));
+    void testJpaConfigIsConfiguration() {
+        // Verify that JpaConfig is a proper Spring configuration
+        assertTrue(JpaConfig.class.isAnnotationPresent(org.springframework.context.annotation.Configuration.class));
     }
 
     @Test
-    void testJpaConfigIsConfigurationClass() {
-        // Verifica se tem a anotação @Configuration
-        assertTrue(JpaConfig.class.isAnnotationPresent(org.springframework.context.annotation.Configuration.class));
+    void testJpaConfigHasEnableJpaAuditing() {
+        // Verify that JpaConfig enables JPA auditing
+        assertTrue(JpaConfig.class.isAnnotationPresent(org.springframework.data.jpa.repository.config.EnableJpaAuditing.class));
+    }
+
+    @Test
+    void testJpaConfigClass() {
+        // Verify class properties
+        assertFalse(JpaConfig.class.isInterface());
+        assertTrue(java.lang.reflect.Modifier.isPublic(JpaConfig.class.getModifiers()));
     }
 } 

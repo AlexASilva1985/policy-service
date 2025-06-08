@@ -70,18 +70,18 @@ public class MetricsConfig {
 
     @Bean
     public Gauge activePoliciesGauge(MeterRegistry registry) {
-        return Gauge.builder("insurance.policy.active.count")
+        return Gauge.builder("insurance.policy.active.count", activePolicies, AtomicLong::get)
                 .description("Number of active policies")
                 .tag("service", "policy-service")
-                .register(registry, activePolicies, AtomicLong::get);
+                .register(registry);
     }
 
     @Bean
     public Gauge pendingValidationsGauge(MeterRegistry registry) {
-        return Gauge.builder("insurance.policy.pending.validations.count")
+        return Gauge.builder("insurance.policy.pending.validations.count", pendingValidations, AtomicLong::get)
                 .description("Number of policies pending validation")
                 .tag("service", "policy-service")
-                .register(registry, pendingValidations, AtomicLong::get);
+                .register(registry);
     }
 
     // Métodos para atualizar as métricas

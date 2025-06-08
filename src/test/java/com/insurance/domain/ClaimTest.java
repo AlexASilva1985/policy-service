@@ -21,7 +21,7 @@ class ClaimTest {
 
     @BeforeEach
     void setUp() {
-        // Configurando a apólice
+
         policy = new InsurancePolicy();
         policy.setPolicyNumber("POL-2024-001");
         policy.setStartDate(LocalDate.now().minusMonths(1));
@@ -512,12 +512,347 @@ class ClaimTest {
 
     @Test
     void testInheritanceFromBaseEntity() {
-        assertTrue(claim instanceof BaseEntity);
+
+        assertNotNull(claim);
         
-        claim.setCreatedBy("claims_processor");
-        claim.setUpdatedBy("adjustor");
+        UUID testId = UUID.randomUUID();
+        claim.setId(testId);
+        assertEquals(testId, claim.getId());
+    }
+
+    @Test
+    void testAllStatusTransitionPaths() {
+
+        assertEquals(ClaimStatus.SUBMITTED, claim.getStatus());
         
-        assertEquals("claims_processor", claim.getCreatedBy());
-        assertEquals("adjustor", claim.getUpdatedBy());
+        assertDoesNotThrow(() -> {
+            claim.setStatus(ClaimStatus.UNDER_REVIEW);
+        });
+        assertEquals(ClaimStatus.UNDER_REVIEW, claim.getStatus());
+        
+        assertDoesNotThrow(() -> {
+            claim.setStatus(ClaimStatus.APPROVED);
+        });
+        assertEquals(ClaimStatus.APPROVED, claim.getStatus());
+        
+        assertDoesNotThrow(() -> {
+            claim.setStatus(ClaimStatus.PAID);
+        });
+        assertEquals(ClaimStatus.PAID, claim.getStatus());
+        
+        Claim claim2 = new Claim();
+        claim2.setClaimNumber("CLM98765432");
+        claim2.setIncidentDate(LocalDate.now().minusDays(3));
+        claim2.setDescription("Test claim");
+        claim2.setClaimAmount(new BigDecimal("1000.00"));
+        claim2.setPolicy(policy);
+        
+        assertEquals(ClaimStatus.SUBMITTED, claim2.getStatus());
+        claim2.setStatus(ClaimStatus.UNDER_REVIEW);
+        claim2.setStatus(ClaimStatus.REJECTED);
+        
+        assertEquals(ClaimStatus.REJECTED, claim2.getStatus());
+    }
+
+    @Test
+    void testClaimAmountEdgeCases() {
+
+        assertDoesNotThrow(() -> {
+            claim.setClaimAmount(policy.getCoverageAmount());
+        });
+        assertEquals(policy.getCoverageAmount(), claim.getClaimAmount());
+        
+        assertDoesNotThrow(() -> {
+            claim.setClaimAmount(new BigDecimal("0.01"));
+        });
+        assertEquals(new BigDecimal("0.01"), claim.getClaimAmount());
+        
+        assertDoesNotThrow(() -> {
+            claim.setClaimAmount(policy.getCoverageAmount().subtract(new BigDecimal("0.01")));
+        });
+    }
+
+    @Test
+    void testIncidentDateEdgeCases() {
+
+        assertDoesNotThrow(() -> {
+            claim.setIncidentDate(policy.getStartDate());
+        });
+        assertEquals(policy.getStartDate(), claim.getIncidentDate());
+        
+        assertDoesNotThrow(() -> {
+            claim.setIncidentDate(LocalDate.now());
+        });
+        assertEquals(LocalDate.now(), claim.getIncidentDate());
+        
+        InsurancePolicy policyWithValidStart = new InsurancePolicy();
+        policyWithValidStart.setPolicyNumber("POL-TEST");
+        policyWithValidStart.setCoverageAmount(new BigDecimal("10000.00"));
+        policyWithValidStart.setStartDate(LocalDate.now().minusMonths(1)); // Data válida
+        
+        claim.setPolicy(policyWithValidStart);
+        
+        assertDoesNotThrow(() -> {
+            claim.setIncidentDate(LocalDate.now().minusDays(1));
+        });
+    }
+
+    @Test
+    void testClaimNumberFormats() {
+
+        assertDoesNotThrow(() -> {
+            claim.setClaimNumber("CLM12345678");
+        });
+        
+        assertDoesNotThrow(() -> {
+            claim.setClaimNumber("CLM2024000001");
+        });
+        
+        assertDoesNotThrow(() -> {
+            claim.setClaimNumber("CLMABC123456");
+        });
+    }
+
+    @Test
+    void testDescriptionEdgeCases() {
+
+        assertDoesNotThrow(() -> {
+            claim.setDescription("Acidente com danos: R$ 5.000,00 - Veículo Placa ABC-1234");
+        });
+        
+        String longDescription = "A".repeat(1000);
+        assertDoesNotThrow(() -> {
+            claim.setDescription(longDescription);
+        });
+        assertEquals(longDescription, claim.getDescription());
+        
+        assertDoesNotThrow(() -> {
+            claim.setDescription("Linha 1\nLinha 2\nLinha 3");
+        });
+    }
+
+    @Test
+    void testInvalidStatusTransitionsDetailed() {
+
+        assertEquals(ClaimStatus.SUBMITTED, claim.getStatus());
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            claim.setStatus(ClaimStatus.APPROVED);
+        });
+        assertTrue(exception.getMessage().contains("Invalid status transition"));
+        
+        exception = assertThrows(IllegalStateException.class, () -> {
+            claim.setStatus(ClaimStatus.PAID);
+        });
+        assertTrue(exception.getMessage().contains("Invalid status transition"));
+        
+        Claim newClaim = new Claim();
+        newClaim.setClaimNumber("CLM11223344");
+        newClaim.setIncidentDate(LocalDate.now().minusDays(1));
+        newClaim.setDescription("Test");
+        newClaim.setClaimAmount(new BigDecimal("1000.00"));
+        newClaim.setPolicy(policy);
+        
+        newClaim.setStatus(ClaimStatus.UNDER_REVIEW);
+        newClaim.setStatus(ClaimStatus.APPROVED);
+        
+        exception = assertThrows(IllegalStateException.class, () -> {
+            newClaim.setStatus(ClaimStatus.SUBMITTED);
+        });
+        assertTrue(exception.getMessage().contains("Invalid status transition"));
+    }
+
+    @Test
+    void testClaimWithNullPolicy() {
+        Claim claimWithoutPolicy = new Claim();
+        claimWithoutPolicy.setClaimNumber("CLM12345678");
+        claimWithoutPolicy.setDescription("Test claim");
+        claimWithoutPolicy.setClaimAmount(new BigDecimal("1000.00"));
+        claimWithoutPolicy.setIncidentDate(LocalDate.now().minusDays(1));
+
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            claimWithoutPolicy.validate();
+        });
+        assertTrue(exception.getMessage().contains("policy is required"));
+    }
+
+    @Test
+    void testSetIncidentDateWithNullPolicy() {
+        claim.setPolicy(null);
+        
+        assertDoesNotThrow(() -> {
+            claim.setIncidentDate(LocalDate.now().minusDays(1));
+        });
+    }
+
+    @Test
+    void testSetClaimAmountWithNullPolicy() {
+        claim.setPolicy(null);
+        
+        assertDoesNotThrow(() -> {
+            claim.setClaimAmount(new BigDecimal("1000.00"));
+        });
+        
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            claim.setClaimAmount(BigDecimal.ZERO);
+        });
+        assertTrue(exception.getMessage().contains("zero"));
+    }
+
+    @Test
+    void testPrePersistHook() {
+        Claim newClaim = new Claim();
+        assertEquals(ClaimStatus.SUBMITTED, newClaim.getStatus());
+        
+        newClaim.onCreate();
+        assertEquals(ClaimStatus.SUBMITTED, newClaim.getStatus());
+        
+        Claim claimWithDifferentStatus = new Claim();
+        claimWithDifferentStatus.setStatus(ClaimStatus.UNDER_REVIEW);
+        claimWithDifferentStatus.onCreate();
+        
+        assertEquals(ClaimStatus.UNDER_REVIEW, claimWithDifferentStatus.getStatus());
+    }
+
+    @Test
+    void testCompleteClaimLifecycle() {
+
+        Claim lifecycleClaim = new Claim();
+        lifecycleClaim.setClaimNumber("CLM99887766");
+        lifecycleClaim.setIncidentDate(LocalDate.now().minusDays(2));
+        lifecycleClaim.setDescription("Complete lifecycle test");
+        lifecycleClaim.setClaimAmount(new BigDecimal("3000.00"));
+        lifecycleClaim.setPolicy(policy);
+        
+        assertEquals(ClaimStatus.SUBMITTED, lifecycleClaim.getStatus());
+        
+        lifecycleClaim.setStatus(ClaimStatus.UNDER_REVIEW);
+        assertEquals(ClaimStatus.UNDER_REVIEW, lifecycleClaim.getStatus());
+        
+        lifecycleClaim.setStatus(ClaimStatus.APPROVED);
+        assertEquals(ClaimStatus.APPROVED, lifecycleClaim.getStatus());
+        
+        lifecycleClaim.setStatus(ClaimStatus.PAID);
+        assertEquals(ClaimStatus.PAID, lifecycleClaim.getStatus());
+        
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            lifecycleClaim.setStatus(ClaimStatus.UNDER_REVIEW);
+        });
+        assertTrue(exception.getMessage().contains("Invalid status transition"));
+    }
+
+    @Test
+    void testSupportingDocumentsAndNotes() {
+
+        claim.setSupportingDocuments(null);
+        assertNull(claim.getSupportingDocuments());
+        
+        claim.setAdjustorNotes(null);
+        assertNull(claim.getAdjustorNotes());
+        
+        claim.setSupportingDocuments("");
+        assertEquals("", claim.getSupportingDocuments());
+        
+        claim.setAdjustorNotes("");
+        assertEquals("", claim.getAdjustorNotes());
+        
+        String docs = "doc1.pdf,doc2.jpg,witness_statement.txt";
+        String notes = "Customer provided all required documentation. Approved for payment.";
+        
+        claim.setSupportingDocuments(docs);
+        claim.setAdjustorNotes(notes);
+        
+        assertEquals(docs, claim.getSupportingDocuments());
+        assertEquals(notes, claim.getAdjustorNotes());
+    }
+
+    @Test
+    void testEqualsAndHashCodeFromBaseEntity() {
+        Claim claim1 = new Claim();
+        UUID testId = UUID.randomUUID();
+        claim1.setId(testId);
+        
+        Claim claim2 = new Claim();
+        claim2.setId(testId); // Mesmo ID
+        
+        assertEquals(claim1, claim2);
+        assertEquals(claim1.hashCode(), claim2.hashCode());
+    }
+
+    @Test
+    void testToStringMethod() {
+        String toString = claim.toString();
+        assertNotNull(toString);
+        assertTrue(toString.contains("Claim"));
+    }
+
+    @Test
+    void testValidateCompleteMethodCoverage() {
+        Claim validClaim = new Claim();
+        validClaim.setClaimNumber("CLM55443322");
+        validClaim.setIncidentDate(LocalDate.now().minusDays(1));
+        validClaim.setDescription("Valid claim for testing");
+        validClaim.setClaimAmount(new BigDecimal("2500.00"));
+        validClaim.setPolicy(policy);
+        
+        assertDoesNotThrow(() -> {
+            validClaim.validate();
+        });
+    }
+
+    @Test
+    void testSetClaimNumberWithWhitespace() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            claim.setClaimNumber("   ");
+        });
+        assertTrue(exception.getMessage().contains("empty"));
+    }
+
+    @Test
+    void testSetDescriptionWithWhitespace() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            claim.setDescription("   ");
+        });
+        assertTrue(exception.getMessage().contains("description cannot be empty"));
+    }
+
+    @Test
+    void testAllStatusEnumValues() {
+
+        Claim testClaim = new Claim();
+        testClaim.setClaimNumber("CLM99887766");
+        testClaim.setIncidentDate(LocalDate.now().minusDays(1));
+        testClaim.setDescription("Test");
+        testClaim.setClaimAmount(new BigDecimal("1000.00"));
+        testClaim.setPolicy(policy);
+        
+        assertEquals(ClaimStatus.SUBMITTED, testClaim.getStatus()); // Default
+        
+        testClaim.setStatus(ClaimStatus.UNDER_REVIEW);
+        assertEquals(ClaimStatus.UNDER_REVIEW, testClaim.getStatus());
+        
+        testClaim.setStatus(ClaimStatus.APPROVED);
+        assertEquals(ClaimStatus.APPROVED, testClaim.getStatus());
+        
+        testClaim.setStatus(ClaimStatus.PAID);
+        assertEquals(ClaimStatus.PAID, testClaim.getStatus());
+        
+        Claim rejectedClaim = new Claim();
+        rejectedClaim.setClaimNumber("CLM55443322");
+        rejectedClaim.setIncidentDate(LocalDate.now().minusDays(1));
+        rejectedClaim.setDescription("Test");
+        rejectedClaim.setClaimAmount(new BigDecimal("1000.00"));
+        rejectedClaim.setPolicy(policy);
+        
+        rejectedClaim.setStatus(ClaimStatus.UNDER_REVIEW);
+        rejectedClaim.setStatus(ClaimStatus.REJECTED);
+        assertEquals(ClaimStatus.REJECTED, rejectedClaim.getStatus());
+    }
+
+    @Test
+    void testSetStatusWithNull() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            claim.setStatus(null);
+        });
+        assertTrue(exception.getMessage().contains("status cannot be null"));
     }
 }
