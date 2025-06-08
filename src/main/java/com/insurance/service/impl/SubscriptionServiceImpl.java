@@ -1,7 +1,7 @@
 package com.insurance.service.impl;
 
 import com.insurance.domain.PolicyRequest;
-import com.insurance.domain.enums.PolicyRequestStatus;
+import com.insurance.domain.enums.PolicyStatus;
 import com.insurance.event.SubscriptionApprovedEvent;
 import com.insurance.infrastructure.messaging.config.RabbitMQConfig;
 import com.insurance.infrastructure.messaging.service.EventPublisher;
@@ -25,7 +25,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         log.info("Processing subscription for policy request: {}", request.getId());
         
-        request.setStatus(PolicyRequestStatus.APPROVED);
+        request.setStatus(PolicyStatus.APPROVED);
         
         eventPublisher.publish(
             RabbitMQConfig.POLICY_EVENTS_EXCHANGE,
@@ -59,7 +59,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (request.getStatus() == null) {
             throw new IllegalArgumentException("Policy request status cannot be null");
         }
-        if (request.getStatus() != PolicyRequestStatus.PENDING) {
+        if (request.getStatus() != PolicyStatus.PENDING) {
             throw new IllegalStateException("Cannot process subscription for request in status: " + request.getStatus());
         }
     }

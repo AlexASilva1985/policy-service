@@ -1,0 +1,340 @@
+{
+	"info": {
+		"_postman_id": "f6a9c07e-dc22-4662-83ee-9213bf821890",
+		"name": "Desafio-Seguro",
+		"description": "StartFragment\n\n# Acatar Automação Residencial\n\nAtualizando parceiros com as soluções do conceito de ambientes inteligentes\n\nEndFragment",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3147616"
+	},
+	"item": [
+		{
+			"name": "Policy",
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "",
+						"value": "",
+						"type": "text",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"customerId\": \"550e8400-e29b-41d4-a716-446655440001\",\r\n  \"productId\": \"550e8400-e29b-41d4-a716-446655440002\",\r\n  \"category\": \"AUTO\",\r\n  \"salesChannel\": \"MOBILE\",\r\n  \"paymentMethod\": \"CREDIT_CARD\",\r\n  \"totalMonthlyPremiumAmount\": 75.25,\r\n  \"insuredAmount\": 275000.00,\r\n  \"coverages\": {\r\n    \"Roubo\": 100000.50,\r\n    \"Perda Total\": 100000.25,\r\n    \"Colisão com terceiros\": 75000.00\r\n  },\r\n  \"assistances\": [\r\n    \"Guincho até 250km\",\r\n    \"Troca de Óleo\",\r\n    \"Chaveiro 24hrs\"\r\n  ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Policy ID",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy/d8955a55-995b-43de-b213-79bd567868bc",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy",
+						"d8955a55-995b-43de-b213-79bd567868bc"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Customer Id",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"customerId\": \"550e8400-e29b-41d4-a716-446655440001\",\r\n  \"productId\": \"550e8400-e29b-41d4-a716-446655440002\",\r\n  \"category\": \"AUTO\",\r\n  \"salesChannel\": \"MOBILE\",\r\n  \"paymentMethod\": \"CREDIT_CARD\",\r\n  \"totalMonthlyPremiumAmount\": 150.00,\r\n  \"insuredAmount\": 50000.00,\r\n  \"coverages\": {\r\n    \"Collision\": 30000.00,\r\n    \"Theft\": 20000.00,\r\n    \"Comprehensive\": 10000.00\r\n  },\r\n  \"assistances\": [\r\n    \"Roadside Assistance\",\r\n    \"Glass Protection\",\r\n    \"Emergency Service\"\r\n  ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy/customer/550e8400-e29b-41d4-a716-446655440001",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy",
+						"customer",
+						"550e8400-e29b-41d4-a716-446655440001"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Fraud-Analysis",
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy/25cb5664-7a0a-417a-bbd7-d316055c31cb/fraud-analysis",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy",
+						"25cb5664-7a0a-417a-bbd7-d316055c31cb",
+						"fraud-analysis"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Validate",
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"customerId\": \"550e8400-e29b-41d4-a716-446655440003\",\r\n  \"productId\": \"550e8400-e29b-41d4-a716-446655440004\",\r\n  \"category\": \"LIFE\",\r\n  \"salesChannel\": \"BROKER\",\r\n  \"paymentMethod\": \"BANK_TRANSFER\",\r\n  \"totalMonthlyPremiumAmount\": 300.00,\r\n  \"insuredAmount\": 1000000.00,\r\n  \"coverages\": {\r\n    \"Death Benefit\": 1000000.00,\r\n    \"Disability\": 500000.00\r\n  },\r\n  \"assistances\": [\r\n    \"Legal Assistance\",\r\n    \"Psychological Support\"\r\n  ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy-requests",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy-requests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Payment",
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"customerId\": \"550e8400-e29b-41d4-a716-446655440003\",\r\n  \"productId\": \"550e8400-e29b-41d4-a716-446655440004\",\r\n  \"category\": \"LIFE\",\r\n  \"salesChannel\": \"BROKER\",\r\n  \"paymentMethod\": \"BANK_TRANSFER\",\r\n  \"totalMonthlyPremiumAmount\": 300.00,\r\n  \"insuredAmount\": 1000000.00,\r\n  \"coverages\": {\r\n    \"Death Benefit\": 1000000.00,\r\n    \"Disability\": 500000.00\r\n  },\r\n  \"assistances\": [\r\n    \"Legal Assistance\",\r\n    \"Psychological Support\"\r\n  ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy-requests",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy-requests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Subscription",
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"customerId\": \"550e8400-e29b-41d4-a716-446655440003\",\r\n  \"productId\": \"550e8400-e29b-41d4-a716-446655440004\",\r\n  \"category\": \"LIFE\",\r\n  \"salesChannel\": \"BROKER\",\r\n  \"paymentMethod\": \"BANK_TRANSFER\",\r\n  \"totalMonthlyPremiumAmount\": 300.00,\r\n  \"insuredAmount\": 1000000.00,\r\n  \"coverages\": {\r\n    \"Death Benefit\": 1000000.00,\r\n    \"Disability\": 500000.00\r\n  },\r\n  \"assistances\": [\r\n    \"Legal Assistance\",\r\n    \"Psychological Support\"\r\n  ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy-requests",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy-requests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Cancel",
+			"request": {
+				"auth": {
+					"type": "bearer"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"customerId\": \"550e8400-e29b-41d4-a716-446655440003\",\r\n  \"productId\": \"550e8400-e29b-41d4-a716-446655440004\",\r\n  \"category\": \"LIFE\",\r\n  \"salesChannel\": \"BROKER\",\r\n  \"paymentMethod\": \"BANK_TRANSFER\",\r\n  \"totalMonthlyPremiumAmount\": 300.00,\r\n  \"insuredAmount\": 1000000.00,\r\n  \"coverages\": {\r\n    \"Death Benefit\": 1000000.00,\r\n    \"Disability\": 500000.00\r\n  },\r\n  \"assistances\": [\r\n    \"Legal Assistance\",\r\n    \"Psychological Support\"\r\n  ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/v1/policy-requests",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"api",
+						"v1",
+						"policy-requests"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

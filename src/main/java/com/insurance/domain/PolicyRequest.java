@@ -2,7 +2,7 @@ package com.insurance.domain;
 
 import com.insurance.domain.enums.InsuranceCategory;
 import com.insurance.domain.enums.PaymentMethod;
-import com.insurance.domain.enums.PolicyRequestStatus;
+import com.insurance.domain.enums.PolicyStatus;
 import com.insurance.domain.enums.SalesChannel;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
@@ -53,7 +53,7 @@ public class PolicyRequest extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PolicyRequestStatus status = PolicyRequestStatus.RECEIVED;
+    private PolicyStatus status = PolicyStatus.RECEIVED;
 
     @Column(name = "total_monthly_premium_amount", nullable = false)
     private BigDecimal totalMonthlyPremiumAmount;
@@ -113,7 +113,7 @@ public class PolicyRequest extends BaseEntity {
         }
     }
 
-    public void updateStatus(PolicyRequestStatus newStatus) {
+    public void updateStatus(PolicyStatus newStatus) {
         if (newStatus == null) {
             throw new IllegalArgumentException("New status cannot be null");
         }
@@ -131,30 +131,30 @@ public class PolicyRequest extends BaseEntity {
         this.statusHistory.add(history);
         this.status = newStatus;
 
-        if (newStatus == PolicyRequestStatus.APPROVED || 
-            newStatus == PolicyRequestStatus.REJECTED || 
-            newStatus == PolicyRequestStatus.CANCELLED) {
+        if (newStatus == PolicyStatus.APPROVED ||
+            newStatus == PolicyStatus.REJECTED ||
+            newStatus == PolicyStatus.CANCELLED) {
             this.finishedAt = LocalDateTime.now();
         }
     }
 
-    public boolean canTransitionTo(PolicyRequestStatus newStatus) {
+    public boolean canTransitionTo(PolicyStatus newStatus) {
         if (this.status == null) {
-            return newStatus == PolicyRequestStatus.RECEIVED;
+            return newStatus == PolicyStatus.RECEIVED;
         }
 
         return switch (this.status) {
-            case RECEIVED -> newStatus == PolicyRequestStatus.VALIDATED || 
-                           newStatus == PolicyRequestStatus.REJECTED ||
-                           newStatus == PolicyRequestStatus.CANCELLED;
-            case VALIDATED -> newStatus == PolicyRequestStatus.PENDING || 
-                            newStatus == PolicyRequestStatus.REJECTED ||
-                            newStatus == PolicyRequestStatus.CANCELLED;
-            case PENDING -> newStatus == PolicyRequestStatus.APPROVED || 
-                          newStatus == PolicyRequestStatus.REJECTED ||
-                          newStatus == PolicyRequestStatus.CANCELLED;
-            case APPROVED -> false; // Não pode mudar após aprovado
-            case REJECTED, CANCELLED -> false; // Estados finais
+            case RECEIVED -> newStatus == PolicyStatus.VALIDATED ||
+                           newStatus == PolicyStatus.REJECTED ||
+                           newStatus == PolicyStatus.CANCELLED;
+            case VALIDATED -> newStatus == PolicyStatus.PENDING ||
+                            newStatus == PolicyStatus.REJECTED ||
+                            newStatus == PolicyStatus.CANCELLED;
+            case PENDING -> newStatus == PolicyStatus.APPROVED ||
+                          newStatus == PolicyStatus.REJECTED ||
+                          newStatus == PolicyStatus.CANCELLED;
+            case APPROVED -> false;
+            case REJECTED, CANCELLED -> false;
         };
     }
 

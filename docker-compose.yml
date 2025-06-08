@@ -30,6 +30,20 @@ services:
       - insurance-network
     restart: unless-stopped
 
+  mockserver:
+    image: mockserver/mockserver:5.15.0
+    container_name: insurance-mockserver
+    ports:
+      - "1080:1080"
+    environment:
+      MOCKSERVER_PROPERTY_FILE: /config/mockserver.properties
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/initializerJson.json
+    volumes:
+      - ./mockserver:/config
+    networks:
+      - insurance-network
+    restart: unless-stopped
+
   app:
     build: .
     container_name: insurance-app
@@ -40,9 +54,11 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_RABBITMQ_HOST: rabbitmq
+      FRAUD_API_URL: http://mockserver:1080/api/fraud-analysis
     depends_on:
       - postgres
       - rabbitmq
+      - mockserver
     networks:
       - insurance-network
 

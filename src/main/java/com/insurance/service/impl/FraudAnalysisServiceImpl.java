@@ -3,14 +3,15 @@ package com.insurance.service.impl;
 import com.insurance.domain.PolicyRequest;
 import com.insurance.domain.RiskAnalysis;
 import com.insurance.domain.RiskOccurrence;
+import com.insurance.domain.enums.CustomerRiskType;
+import com.insurance.domain.enums.InsuranceCategory;
 import com.insurance.service.FraudAnalysisService;
-import com.insurance.infrastructure.client.FraudAnalysisClient;
-import com.insurance.infrastructure.client.dto.FraudAnalysisResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,28 +21,32 @@ import java.util.List;
 @Slf4j
 public class FraudAnalysisServiceImpl implements FraudAnalysisService {
 
-    private final FraudAnalysisClient fraudAnalysisClient;
-
     @Override
     @Transactional
     public RiskAnalysis analyzeFraud(PolicyRequest request) {
         validateRequest(request);
 
-        log.info("Starting fraud analysis for policy request: {}", request.getId());
-
-        FraudAnalysisResponse response = fraudAnalysisClient.analyzeFraud(
-            request.getId(),
-            request.getCustomerId()
-        );
-
-        validateResponse(response);
-
-        RiskAnalysis riskAnalysis = new RiskAnalysis();
-        riskAnalysis.setClassification(response.getClassification());
-        riskAnalysis.setAnalyzedAt(response.getAnalyzedAt());
-        riskAnalysis.setOccurrences(mapOccurrences(response.getOccurrences()));
-
-        return riskAnalysis;
+        try {
+            RiskAnalysis riskAnalysis = new RiskAnalysis();
+            riskAnalysis.setAnalyzedAt(LocalDateTime.now());
+            
+            CustomerRiskType classification = determineRiskClassification(request);
+            riskAnalysis.setClassification(classification);
+            
+            List<RiskOccurrence> occurrences = generateOccurrences(request, classification);
+            riskAnalysis.setOccurrences(occurrences);
+            
+            log.info("Fraud analysis completed for policy request: {} with classification: {} and {} occurrences", 
+                    request.getId(), riskAnalysis.getClassification(), riskAnalysis.getOccurrences().size());
+            
+            return riskAnalysis;
+            
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error performing fraud analysis for policy request: {}", request.getId(), e);
+            throw new RuntimeException("Failed to analyze fraud for policy request: " + request.getId(), e);
+        }
     }
 
     private void validateRequest(PolicyRequest request) {
@@ -52,54 +57,68 @@ public class FraudAnalysisServiceImpl implements FraudAnalysisService {
             throw new IllegalArgumentException("Policy request ID cannot be null");
         }
         if (request.getCustomerId() == null) {
-            throw new IllegalArgumentException("Customer ID cannot be null");
+            throw new IllegalArgumentException("customerId cannot be null");
+        }
+        if (request.getInsuredAmount() == null || request.getInsuredAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("insuredAmount must be greater than zero");
+        }
+        if (request.getCategory() == null) {
+            throw new IllegalArgumentException("category cannot be null");
         }
     }
 
-    private void validateResponse(FraudAnalysisResponse response) {
-        if (response == null) {
-            throw new IllegalStateException("Fraud analysis response cannot be null");
-        }
-        if (response.getClassification() == null) {
-            throw new IllegalStateException("Risk classification cannot be null");
-        }
-        if (response.getAnalyzedAt() == null) {
-            throw new IllegalStateException("Analysis date cannot be null");
-        }
-        if (response.getAnalyzedAt().isAfter(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Analysis date cannot be in the future");
+    private CustomerRiskType determineRiskClassification(PolicyRequest request) {
+        BigDecimal amount = request.getInsuredAmount();
+        InsuranceCategory category = request.getCategory();
+        
+        if (isHighRiskAmount(amount, category)) {
+            return CustomerRiskType.HIGH_RISK;
+        } else if (isPreferredAmount(amount, category)) {
+            return CustomerRiskType.PREFERRED;
+        } else {
+            return CustomerRiskType.REGULAR;
         }
     }
 
-    private List<RiskOccurrence> mapOccurrences(List<FraudAnalysisResponse.RiskOccurrenceResponse> occurrences) {
-        if (occurrences == null) {
-            return new ArrayList<>();
-        }
-
-        return occurrences.stream()
-            .map(this::mapOccurrence)
-            .toList();
+    private boolean isHighRiskAmount(BigDecimal amount, InsuranceCategory category) {
+        return switch (category) {
+            case LIFE -> amount.compareTo(new BigDecimal("500000.00")) > 0;
+            case AUTO -> amount.compareTo(new BigDecimal("300000.00")) > 0;
+            case RESIDENTIAL -> amount.compareTo(new BigDecimal("400000.00")) > 0;
+            case TRAVEL, HEALTH -> amount.compareTo(new BigDecimal("200000.00")) > 0;
+        };
     }
 
-    private RiskOccurrence mapOccurrence(FraudAnalysisResponse.RiskOccurrenceResponse response) {
-        if (response.getType() == null || response.getType().isEmpty()) {
-            throw new IllegalArgumentException("Risk occurrence type cannot be empty");
+    private boolean isPreferredAmount(BigDecimal amount, InsuranceCategory category) {
+        return switch (category) {
+            case LIFE -> amount.compareTo(new BigDecimal("200000.00")) >= 0 && amount.compareTo(new BigDecimal("500000.00")) <= 0;
+            case AUTO -> amount.compareTo(new BigDecimal("150000.00")) >= 0 && amount.compareTo(new BigDecimal("300000.00")) <= 0;
+            case RESIDENTIAL -> amount.compareTo(new BigDecimal("200000.00")) >= 0 && amount.compareTo(new BigDecimal("400000.00")) <= 0;
+            case TRAVEL, HEALTH -> amount.compareTo(new BigDecimal("100000.00")) >= 0 && amount.compareTo(new BigDecimal("200000.00")) <= 0;
+        };
+    }
+    
+    private List<RiskOccurrence> generateOccurrences(PolicyRequest request, CustomerRiskType classification) {
+        List<RiskOccurrence> occurrences = new ArrayList<>();
+        
+        if (classification == CustomerRiskType.HIGH_RISK) {
+            RiskOccurrence occurrence = new RiskOccurrence();
+            occurrence.setType("HIGH_VALUE");
+            occurrence.setDescription("High insured amount detected for category " + request.getCategory());
+            occurrence.setCreatedAt(LocalDateTime.now());
+            occurrence.setUpdatedAt(LocalDateTime.now());
+            occurrences.add(occurrence);
         }
-        if (response.getDescription() == null || response.getDescription().isEmpty()) {
-            throw new IllegalArgumentException("Risk occurrence description cannot be empty");
+        
+        if (request.getInsuredAmount().compareTo(new BigDecimal("1000000.00")) > 0) {
+            RiskOccurrence occurrence = new RiskOccurrence();
+            occurrence.setType("EXTREME_VALUE");
+            occurrence.setDescription("Extremely high insured amount detected");
+            occurrence.setCreatedAt(LocalDateTime.now());
+            occurrence.setUpdatedAt(LocalDateTime.now());
+            occurrences.add(occurrence);
         }
-        if (response.getCreatedAt() == null) {
-            throw new IllegalArgumentException("Risk occurrence creation date cannot be null");
-        }
-        if (response.getUpdatedAt() == null) {
-            throw new IllegalArgumentException("Risk occurrence update date cannot be null");
-        }
-
-        RiskOccurrence occurrence = new RiskOccurrence();
-        occurrence.setType(response.getType());
-        occurrence.setDescription(response.getDescription());
-        occurrence.setCreatedAt(response.getCreatedAt());
-        occurrence.setUpdatedAt(response.getUpdatedAt());
-        return occurrence;
+        
+        return occurrences;
     }
 } 

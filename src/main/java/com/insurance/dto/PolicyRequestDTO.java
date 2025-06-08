@@ -2,18 +2,15 @@ package com.insurance.dto;
 
 import com.insurance.domain.enums.InsuranceCategory;
 import com.insurance.domain.enums.PaymentMethod;
-import com.insurance.domain.enums.PolicyRequestStatus;
+import com.insurance.domain.enums.PolicyStatus;
 import com.insurance.domain.enums.SalesChannel;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import lombok.Data;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import lombok.Data;
+import java.util.*;
 
 @Data
 public class PolicyRequestDTO {
@@ -34,7 +31,7 @@ public class PolicyRequestDTO {
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
     
-    private PolicyRequestStatus status;
+    private PolicyStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime finishedAt;
     

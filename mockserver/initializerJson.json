@@ -1,5 +1,6 @@
 [
   {
+    "id": "fraud-analysis-regular",
     "httpRequest": {
       "method": "POST",
       "path": "/api/fraud-analysis"
@@ -10,21 +11,135 @@
         "Content-Type": ["application/json"]
       },
       "body": {
-        "orderId": "e053467f-bd48-4fd2-9481-75bd4e88ee40",
-        "customerId": "7c2a27ba-71ef-4dd8-a3cf-5e094316ffd8",
-        "analyzedAt": "2024-05-10T12:00:00Z",
-        "classification": "HIGH_RISK",
+        "orderId": "550e8400-e29b-41d4-a716-446655440000",
+        "customerId": "550e8400-e29b-41d4-a716-446655440001",
+        "analyzedAt": "2024-06-08T14:30:00Z",
+        "classification": "REGULAR",
         "occurrences": [
           {
-            "id": "e053467f-bd48-4fd2-9481-75bd4e88ee40",
+            "id": "d4e5f6a7-b8c9-0123-defa-456789012345",
             "productId": 78900069,
             "type": "FRAUD",
-            "description": "Attempted Fraudulent transaction",
-            "createdAt": "2024-05-10T12:00:00Z",
-            "updatedAt": "2024-05-10T12:00:00Z"
+            "description": "Atividade suspeita detectada no histórico",
+            "createdAt": "2024-05-25T08:30:00Z",
+            "updatedAt": "2024-05-30T12:15:00Z"
+          },
+          {
+            "id": "e5f6a7b8-c9d0-1234-efab-567890123456",
+            "productId": 78900069,
+            "type": "IDENTITY_VERIFICATION",
+            "description": "Verificação de identidade inconsistente",
+            "createdAt": "2024-05-20T14:45:00Z",
+            "updatedAt": "2024-05-25T09:20:00Z"
           }
         ]
       }
+    },
+    "times": {
+      "unlimited": true
+    }
+  },
+  {
+    "id": "fraud-analysis-high-risk",
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/fraud-analysis"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "orderId": "550e8400-e29b-41d4-a716-446655440000",
+        "customerId": "550e8400-e29b-41d4-a716-446655440001",
+        "analyzedAt": "2024-06-08T14:30:00Z",
+        "classification": "HIGH_RISK",
+        "occurrences": [
+          {
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "productId": 78900069,
+            "type": "FRAUD",
+            "description": "Tentativa de transação fraudulenta detectada",
+            "createdAt": "2024-06-07T10:00:00Z",
+            "updatedAt": "2024-06-07T15:30:00Z"
+          },
+          {
+            "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+            "productId": 78900069,
+            "type": "IDENTITY_VERIFICATION",
+            "description": "Falha na verificação de identidade",
+            "createdAt": "2024-06-06T14:20:00Z",
+            "updatedAt": "2024-06-06T16:45:00Z"
+          },
+          {
+            "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+            "productId": 78900069,
+            "type": "VELOCITY_CHECK",
+            "description": "Múltiplas solicitações em período suspeito",
+            "createdAt": "2024-06-05T09:15:00Z",
+            "updatedAt": "2024-06-05T11:30:00Z"
+          }
+        ]
+      }
+    },
+    "times": {
+      "unlimited": true
+    }
+  },
+  {
+    "id": "fraud-analysis-preferred",
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/fraud-analysis"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "orderId": "550e8400-e29b-41d4-a716-446655440000",
+        "customerId": "550e8400-e29b-41d4-a716-446655440001",
+        "analyzedAt": "2024-06-08T14:30:00Z",
+        "classification": "PREFERRED",
+        "occurrences": [
+          {
+            "id": "f6a7b8c9-d0e1-2345-fabc-678901234567",
+            "productId": 78900069,
+            "type": "SUSPICION",
+            "description": "Unusual activity flagged for review",
+            "createdAt": "2024-06-01T16:20:00Z",
+            "updatedAt": "2024-06-03T10:40:00Z"
+          }
+        ]
+      }
+    },
+    "times": {
+      "unlimited": true
+    }
+  },
+  {
+    "id": "fraud-analysis-no-info",
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/fraud-analysis"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "orderId": "550e8400-e29b-41d4-a716-446655440000",
+        "customerId": "550e8400-e29b-41d4-a716-446655440001",
+        "analyzedAt": "2024-06-08T14:30:00Z",
+        "classification": "NO_INFORMATION",
+        "occurrences": []
+      }
+    },
+    "times": {
+      "unlimited": true
     }
   }
 ] 

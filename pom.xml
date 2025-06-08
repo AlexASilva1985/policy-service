@@ -12,7 +12,7 @@
     </parent>
 
     <groupId>com.insurance</groupId>
-    <artifactId>insurance-challenge</artifactId>
+    <artifactId>policy-service</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -79,6 +79,13 @@
             <groupId>org.springframework.amqp</groupId>
             <artifactId>spring-rabbit-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        
+        <!-- Mock Server -->
+        <dependency>
+            <groupId>com.github.tomakehurst</groupId>
+            <artifactId>wiremock-jre8</artifactId>
+            <version>2.35.1</version>
         </dependency>
 
         <!-- Test Dependencies -->

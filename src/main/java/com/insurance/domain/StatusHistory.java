@@ -1,6 +1,6 @@
 package com.insurance.domain;
 
-import com.insurance.domain.enums.PolicyRequestStatus;
+import com.insurance.domain.enums.PolicyStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -23,11 +23,11 @@ public class StatusHistory extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PolicyRequestStatus previousStatus;
+    private PolicyStatus previousStatus;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PolicyRequestStatus newStatus;
+    private PolicyStatus newStatus;
 
     @Column(nullable = false)
     private LocalDateTime changedAt;
@@ -41,14 +41,14 @@ public class StatusHistory extends BaseEntity {
         this.policyRequestId = policyRequestId;
     }
 
-    public void setPreviousStatus(PolicyRequestStatus previousStatus) {
+    public void setPreviousStatus(PolicyStatus previousStatus) {
         if (previousStatus == null) {
             throw new IllegalArgumentException("previousStatus cannot be null");
         }
         this.previousStatus = previousStatus;
     }
 
-    public void setNewStatus(PolicyRequestStatus newStatus) {
+    public void setNewStatus(PolicyStatus newStatus) {
         if (newStatus == null) {
             throw new IllegalArgumentException("newStatus cannot be null");
         }
@@ -61,25 +61,25 @@ public class StatusHistory extends BaseEntity {
         this.newStatus = newStatus;
     }
 
-    private boolean isValidStatusTransition(PolicyRequestStatus from, PolicyRequestStatus to) {
+    private boolean isValidStatusTransition(PolicyStatus from, PolicyStatus to) {
         switch (from) {
             case RECEIVED:
-                return to == PolicyRequestStatus.VALIDATED || 
-                       to == PolicyRequestStatus.REJECTED ||
-                       to == PolicyRequestStatus.CANCELLED;
+                return to == PolicyStatus.VALIDATED ||
+                       to == PolicyStatus.REJECTED ||
+                       to == PolicyStatus.CANCELLED;
             case VALIDATED:
-                return to == PolicyRequestStatus.PENDING || 
-                       to == PolicyRequestStatus.REJECTED ||
-                       to == PolicyRequestStatus.CANCELLED;
+                return to == PolicyStatus.PENDING ||
+                       to == PolicyStatus.REJECTED ||
+                       to == PolicyStatus.CANCELLED;
             case PENDING:
-                return to == PolicyRequestStatus.APPROVED || 
-                       to == PolicyRequestStatus.REJECTED ||
-                       to == PolicyRequestStatus.CANCELLED;
+                return to == PolicyStatus.APPROVED ||
+                       to == PolicyStatus.REJECTED ||
+                       to == PolicyStatus.CANCELLED;
             case APPROVED:
-                return false; // Não pode mudar após aprovado
+                return false;
             case REJECTED:
             case CANCELLED:
-                return false; // Estados finais
+                return false;
             default:
                 return false;
         }

@@ -1,9 +1,10 @@
 package com.insurance.domain.enums;
 
 public enum PolicyStatus {
-    DRAFT,
-    ACTIVE,
-    EXPIRED,
-    CANCELLED,
-    SUSPENDED
+    RECEIVED,
+    VALIDATED,
+    PENDING,
+    APPROVED,
+    REJECTED,
+    CANCELLED
 } 

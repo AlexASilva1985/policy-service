@@ -1,6 +1,9 @@
 package com.insurance.controller;
 
+import com.insurance.dto.FraudAnalysisResponseDTO;
 import com.insurance.dto.PolicyRequestDTO;
+import com.insurance.dto.PolicyValidationResponseDTO;
+import com.insurance.dto.PolicyCancelResponseDTO;
 import com.insurance.mapper.PolicyRequestMapper;
 import com.insurance.domain.PolicyRequest;
 import com.insurance.service.PolicyRequestService;
@@ -11,10 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +28,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/policy-requests")
+@RequestMapping("/api/v1/policy")
 @RequiredArgsConstructor
 public class PolicyRequestController {
 
@@ -39,8 +39,9 @@ public class PolicyRequestController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Timed(value = "policy.request.create", description = "Time taken to create a policy request")
-    public PolicyRequestDTO createPolicyRequest(@Valid @RequestBody PolicyRequestDTO request) {
-        log.info("Creating policy request for customer: {}", request.getCustomerId());
+    public PolicyRequestDTO createPolicyRequest(
+            @Valid @RequestBody PolicyRequestDTO request) {
+
         PolicyRequest entity = mapper.toEntity(request);
         PolicyRequest created = service.createPolicyRequest(entity);
         return mapper.toDTO(created);
@@ -48,86 +49,111 @@ public class PolicyRequestController {
 
     @GetMapping("/{id}")
     @Timed(value = "policy.request.get", description = "Time taken to get a policy request")
-    public PolicyRequestDTO getPolicyRequest(@PathVariable UUID id) {
-        log.info("Getting policy request: {}", id);
+    public ResponseEntity<PolicyRequestDTO> getPolicyRequest(@PathVariable UUID id) {
         try {
             PolicyRequest entity = service.findById(id);
-            return mapper.toDTO(entity);
+            PolicyRequestDTO dto = mapper.toDTO(entity);
+            return ResponseEntity.ok(dto);
         } catch (EntityNotFoundException e) {
-            throw new EntityNotFoundException("Policy request not found with id: " + id);
+            log.warn("Policy request not found with id: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error getting policy request with id: {}", id, e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 
     @GetMapping("/customer/{customerId}")
     @Timed(value = "policy.request.get.by.customer", description = "Time taken to get policy requests by customer")
-    public List<PolicyRequestDTO> getPolicyRequestsByCustomer(@PathVariable UUID customerId) {
-        log.info("Getting policy requests for customer: {}", customerId);
-        return service.findByCustomerId(customerId).stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
+    public ResponseEntity<List<PolicyRequestDTO>> getPolicyRequestsByCustomer(@PathVariable UUID customerId) {
+
+        try {
+            List<PolicyRequest> policyRequests = service.findByCustomerId(customerId);
+            List<PolicyRequestDTO> result = policyRequests.stream()
+                    .map(mapper::toDTO)
+                    .collect(Collectors.toList());
+            
+            log.info("Found {} policy requests for customer: {}", result.size(), customerId);
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("Error getting policy requests for customer: {}", customerId, e);
+            return ResponseEntity.ok(List.of());
+        }
     }
 
     @PostMapping("/{id}/validate")
-    public ResponseEntity<Void> validate(@PathVariable UUID id) {
-        service.validatePolicyRequest(id);
-        return ResponseEntity.ok().build();
+    @Timed(value = "policy.request.validate", description = "Time taken to validate a policy request")
+    public ResponseEntity<PolicyValidationResponseDTO> validate(@PathVariable UUID id) {
+        PolicyValidationResponseDTO result = service.validatePolicyRequest(id);
+        
+        if (result.isValidated()) {
+            return ResponseEntity.ok(result);
+        } else if (result.getStatus() == null) {
+            return ResponseEntity.internalServerError().body(result);
+        } else {
+            return ResponseEntity.badRequest().body(result);
+        }
     }
 
     @PostMapping("/{id}/fraud-analysis")
     @Timed(value = "policy.request.fraud.analysis", description = "Time taken to process fraud analysis")
-    public ResponseEntity<Void> processFraudAnalysis(@PathVariable UUID id) {
-        log.info("Starting fraud analysis for policy request: {}", id);
-        service.processFraudAnalysis(id);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<FraudAnalysisResponseDTO> processFraudAnalysis(@PathVariable UUID id) {
+        try {
+
+            FraudAnalysisResponseDTO response = service.processFraudAnalysis(id);
+            return ResponseEntity.ok(response);
+        } catch (EntityNotFoundException e) {
+            log.warn("Policy request not found with id: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error processing fraud analysis for policy request with id: {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PostMapping("/{id}/payment")
     @Timed(value = "policy.request.payment", description = "Time taken to process payment")
     public ResponseEntity<Void> processPayment(@PathVariable UUID id) {
-        log.info("Processing payment for policy request: {}", id);
-        service.processPayment(id);
-        return ResponseEntity.ok().build();
+        try {
+            service.processPayment(id);
+            return ResponseEntity.ok().build();
+        } catch (IllegalStateException e) {
+            log.warn("Cannot process payment for policy request {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (EntityNotFoundException e) {
+            log.warn("Policy request not found with id: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error processing payment for policy request with id: {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PostMapping("/{id}/subscription")
     @Timed(value = "policy.request.subscription", description = "Time taken to process subscription")
     public ResponseEntity<Void> processSubscription(@PathVariable UUID id) {
-        log.info("Processing subscription for policy request: {}", id);
-        service.processSubscription(id);
-        return ResponseEntity.ok().build();
+        try {
+            service.processSubscription(id);
+            return ResponseEntity.ok().build();
+        } catch (EntityNotFoundException e) {
+            log.warn("Policy request not found with id: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error processing subscription for policy request with id: {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PostMapping("/{id}/cancel")
     @Timed(value = "policy.request.cancel", description = "Time taken to cancel a policy request")
-    public ResponseEntity<Void> cancelPolicyRequest(@PathVariable UUID id) {
-        log.info("Canceling policy request: {}", id);
-        service.cancelPolicyRequest(id);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<PolicyCancelResponseDTO> cancelPolicyRequest(@PathVariable UUID id) {
+        PolicyCancelResponseDTO result = service.cancelPolicyRequest(id);
+        
+        if (result.isCancelled()) {
+            return ResponseEntity.ok(result);
+        } else {
+            return ResponseEntity.badRequest().body(result);
+        }
     }
-
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ProblemDetail> handleIllegalState(IllegalStateException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-            HttpStatus.UNPROCESSABLE_ENTITY,
-            ex.getMessage()
-        );
-        problem.setTitle("Invalid State Transition");
-        return ResponseEntity
-            .status(HttpStatus.UNPROCESSABLE_ENTITY)
-            .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-            .body(problem);
-    }
-
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleEntityNotFound(EntityNotFoundException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-            HttpStatus.NOT_FOUND,
-            ex.getMessage()
-        );
-        problem.setTitle("Resource Not Found");
-        return ResponseEntity
-            .status(HttpStatus.NOT_FOUND)
-            .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-            .body(problem);
-    }
-} 
+}

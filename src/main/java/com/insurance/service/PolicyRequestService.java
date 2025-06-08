@@ -1,7 +1,10 @@
 package com.insurance.service;
 
 import com.insurance.domain.PolicyRequest;
-import com.insurance.domain.enums.PolicyRequestStatus;
+import com.insurance.domain.enums.PolicyStatus;
+import com.insurance.dto.FraudAnalysisResponseDTO;
+import com.insurance.dto.PolicyValidationResponseDTO;
+import com.insurance.dto.PolicyCancelResponseDTO;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,17 +28,17 @@ public interface PolicyRequestService {
     /**
      * Updates the status of a policy request
      */
-    PolicyRequest updateStatus(UUID id, PolicyRequestStatus newStatus);
+    PolicyRequest updateStatus(UUID id, PolicyStatus newStatus);
 
     /**
      * Validates a policy request based on risk analysis
      */
-    void validatePolicyRequest(UUID id);
+    PolicyValidationResponseDTO validatePolicyRequest(UUID id);
 
     /**
      * Processes fraud analysis for a policy request
      */
-    void processFraudAnalysis(UUID id);
+    FraudAnalysisResponseDTO processFraudAnalysis(UUID id);
 
     /**
      * Processes payment for a policy request
@@ -50,5 +53,5 @@ public interface PolicyRequestService {
     /**
      * Cancels a policy request if it's not already approved
      */
-    void cancelPolicyRequest(UUID id);
+    PolicyCancelResponseDTO cancelPolicyRequest(UUID id);
 } 

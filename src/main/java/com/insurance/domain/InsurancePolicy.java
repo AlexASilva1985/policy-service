@@ -1,18 +1,13 @@
 package com.insurance.domain;
 
-import com.insurance.domain.enums.InsuranceType;
+import com.insurance.domain.enums.InsuranceCategory;
 import com.insurance.domain.enums.PolicyStatus;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "insurance_policies")
@@ -45,7 +40,7 @@ public class InsurancePolicy extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private InsuranceType type;
+    private InsuranceCategory type;
 
     public void setPolicyNumber(String policyNumber) {
         if (policyNumber == null || policyNumber.trim().isEmpty()) {
@@ -104,7 +99,7 @@ public class InsurancePolicy extends BaseEntity {
         this.status = status;
     }
 
-    public void setType(InsuranceType type) {
+    public void setType(InsuranceCategory type) {
         if (type == null) {
             throw new IllegalArgumentException("type cannot be null");
         }
