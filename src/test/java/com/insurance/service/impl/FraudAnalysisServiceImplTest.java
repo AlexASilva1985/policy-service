@@ -61,7 +61,7 @@ class FraudAnalysisServiceImplTest {
 
     @Test
     void testAnalyzeFraudPreferredCustomer() {
-        // Valor que deveria ser classificado como PREFERRED para AUTO (200k)
+
         policyRequest.setInsuredAmount(new BigDecimal("200000.00"));
         policyRequest.setCategory(InsuranceCategory.AUTO);
 
@@ -111,19 +111,19 @@ class FraudAnalysisServiceImplTest {
     void testAnalyzeFraudDifferentCategories() {
 
         policyRequest.setCategory(InsuranceCategory.LIFE);
-        policyRequest.setInsuredAmount(new BigDecimal("300000.00")); // PREFERRED para LIFE
+        policyRequest.setInsuredAmount(new BigDecimal("300000.00"));
         
         RiskAnalysis result = fraudAnalysisService.analyzeFraud(policyRequest);
         assertEquals(CustomerRiskType.PREFERRED, result.getClassification());
 
         policyRequest.setCategory(InsuranceCategory.RESIDENTIAL);
-        policyRequest.setInsuredAmount(new BigDecimal("500000.00")); // HIGH_RISK para RESIDENTIAL
+        policyRequest.setInsuredAmount(new BigDecimal("500000.00"));
         
         result = fraudAnalysisService.analyzeFraud(policyRequest);
         assertEquals(CustomerRiskType.HIGH_RISK, result.getClassification());
 
         policyRequest.setCategory(InsuranceCategory.TRAVEL);
-        policyRequest.setInsuredAmount(new BigDecimal("150000.00")); // PREFERRED para TRAVEL
+        policyRequest.setInsuredAmount(new BigDecimal("150000.00"));
         
         result = fraudAnalysisService.analyzeFraud(policyRequest);
         assertEquals(CustomerRiskType.PREFERRED, result.getClassification());
@@ -180,7 +180,7 @@ class FraudAnalysisServiceImplTest {
 
     @Test
     void testAnalyzeFraudNegativeInsuredAmount() throws Exception {
-        // Usando reflection para setar valor negativo sem passar pelo setter
+
         Field insuredAmountField = PolicyRequest.class.getDeclaredField("insuredAmount");
         insuredAmountField.setAccessible(true);
         insuredAmountField.set(policyRequest, new BigDecimal("-100000.00"));
@@ -192,7 +192,7 @@ class FraudAnalysisServiceImplTest {
 
     @Test
     void testAnalyzeFraudWithNullCategory() throws Exception {
-        // Usando reflection para setar categoria como null
+
         Field categoryField = PolicyRequest.class.getDeclaredField("category");
         categoryField.setAccessible(true);
         categoryField.set(policyRequest, null);
@@ -220,7 +220,7 @@ class FraudAnalysisServiceImplTest {
 
     @Test
     void testAnalyzeFraudRuntimeError() throws Exception {
-        // Usar reflection para forçar um erro no campo customerId
+
         Field customerIdField = PolicyRequest.class.getDeclaredField("customerId");
         customerIdField.setAccessible(true);
         customerIdField.set(policyRequest, null);

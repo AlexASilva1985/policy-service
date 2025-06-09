@@ -61,9 +61,9 @@ class InsurancePolicyValidationServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validatePolicyNumber("   "));
         assertThrows(IllegalArgumentException.class, () -> 
-            validationService.validatePolicyNumber("AUTO-2024-001")); // Must start with POL-
+            validationService.validatePolicyNumber("AUTO-2024-001"));
         assertThrows(IllegalArgumentException.class, () -> 
-            validationService.validatePolicyNumber("POLICY-123456")); // Must start with POL-
+            validationService.validatePolicyNumber("POLICY-123456"));
     }
 
     @Test
@@ -98,7 +98,7 @@ class InsurancePolicyValidationServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateEndDate(null, startDate));
         assertThrows(IllegalArgumentException.class, () -> 
-            validationService.validateEndDate(startDate.minusDays(1), startDate)); // Before start
+            validationService.validateEndDate(startDate.minusDays(1), startDate));
     }
 
     @Test
@@ -122,7 +122,7 @@ class InsurancePolicyValidationServiceImplTest {
 
     @Test
     void testValidateCoverageAmount_Valid() {
-        assertDoesNotThrow(() -> validationService.validateCoverageAmount(new BigDecimal("0.01"))); // Any positive amount
+        assertDoesNotThrow(() -> validationService.validateCoverageAmount(new BigDecimal("0.01")));
         assertDoesNotThrow(() -> validationService.validateCoverageAmount(new BigDecimal("1.00")));
         assertDoesNotThrow(() -> validationService.validateCoverageAmount(new BigDecimal("50000.00")));
         assertDoesNotThrow(() -> validationService.validateCoverageAmount(new BigDecimal("9999999.99")));
@@ -136,7 +136,6 @@ class InsurancePolicyValidationServiceImplTest {
             validationService.validateCoverageAmount(BigDecimal.ZERO));
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateCoverageAmount(new BigDecimal("-1000.00")));
-        // Removed minimum coverage validation as service doesn't check minimum amount
     }
 
     @Test
@@ -183,37 +182,31 @@ class InsurancePolicyValidationServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateInsurancePolicy(policy));
         
-        // Reset and test with null start date
         policy.setPolicyNumber("POL-2024-001");
         policy.setStartDate(null);
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateInsurancePolicy(policy));
         
-        // Reset and test with null end date
         policy.setStartDate(LocalDate.now());
         policy.setEndDate(null);
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateInsurancePolicy(policy));
         
-        // Reset and test with null premium
         policy.setEndDate(LocalDate.now().plusYears(1));
         policy.setPremium(null);
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateInsurancePolicy(policy));
         
-        // Reset and test with null coverage amount
         policy.setPremium(new BigDecimal("100.00"));
         policy.setCoverageAmount(null);
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateInsurancePolicy(policy));
         
-        // Reset and test with null status
         policy.setCoverageAmount(new BigDecimal("50000.00"));
         policy.setStatus(null);
         assertThrows(IllegalArgumentException.class, () -> 
             validationService.validateInsurancePolicy(policy));
         
-        // Reset and test with null type
         policy.setStatus(PolicyStatus.RECEIVED);
         policy.setType(null);
         assertThrows(IllegalArgumentException.class, () -> 
@@ -232,14 +225,10 @@ class InsurancePolicyValidationServiceImplTest {
     void testValidateDateConsistency_Invalid() {
         LocalDate start = LocalDate.now();
         
-        // End date before start date
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(IllegalArgumentException.class, () ->
             validationService.validateDateConsistency(start, start.minusDays(1)));
         
-        // Removed same dates test as service doesn't validate equal dates
-        
-        // Null dates
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(IllegalArgumentException.class, () ->
             validationService.validateDateConsistency(null, start));
         
         assertThrows(IllegalArgumentException.class, () -> 
@@ -248,7 +237,7 @@ class InsurancePolicyValidationServiceImplTest {
 
     @Test
     void testValidateInsurancePolicy_ComplexScenarios() {
-        // Test with different insurance types
+
         for (InsuranceCategory type : InsuranceCategory.values()) {
             InsurancePolicy testPolicy = new InsurancePolicy();
             testPolicy.setPolicyNumber("POL-" + type.name() + "-001");
@@ -266,41 +255,34 @@ class InsurancePolicyValidationServiceImplTest {
 
     @Test
     void testValidateInsurancePolicy_BoundaryValues() {
-        // Test minimum valid premium
         policy.setPremium(new BigDecimal("0.01"));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test minimum valid coverage
         policy.setCoverageAmount(new BigDecimal("0.01")); // Any positive amount is valid
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test simple policy number
         policy.setPolicyNumber("POL-1");
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test longer policy number
         policy.setPolicyNumber("POL-2024-AUTO-COMPREHENSIVE-001");
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
     }
 
     @Test
     void testValidateInsurancePolicy_EdgeCaseDates() {
-        // Test with start date in the past
+
         policy.setStartDate(LocalDate.now().minusYears(1));
         policy.setEndDate(LocalDate.now().plusMonths(6));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test with future start date
         policy.setStartDate(LocalDate.now().plusMonths(1));
         policy.setEndDate(LocalDate.now().plusMonths(13));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test with very long policy duration
         policy.setStartDate(LocalDate.now());
         policy.setEndDate(LocalDate.now().plusYears(10));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test with short policy duration
         policy.setStartDate(LocalDate.now());
         policy.setEndDate(LocalDate.now().plusDays(1));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
@@ -352,11 +334,10 @@ class InsurancePolicyValidationServiceImplTest {
 
     @Test
     void testValidateInsurancePolicy_PrecisionValues() {
-        // Test premium with high precision
+
         policy.setPremium(new BigDecimal("123.456789"));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
         
-        // Test coverage with high precision
         policy.setCoverageAmount(new BigDecimal("50000.123456"));
         assertDoesNotThrow(() -> validationService.validateInsurancePolicy(policy));
     }

@@ -59,4 +59,4 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             throw new IllegalStateException("Cannot process subscription for request in status: " + request.getStatus());
         }
     }
-} 
+}

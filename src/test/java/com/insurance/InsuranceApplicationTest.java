@@ -41,4 +41,4 @@ class InsuranceApplicationTest {
             org.springframework.boot.autoconfigure.SpringBootApplication.class
         ));
     }
-} 
+}

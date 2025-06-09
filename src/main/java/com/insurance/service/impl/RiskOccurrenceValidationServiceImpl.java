@@ -78,4 +78,4 @@ public class RiskOccurrenceValidationServiceImpl implements RiskOccurrenceValida
         }
         validateUpdatedAt(occurrence.getUpdatedAt(), occurrence.getCreatedAt());
     }
-} 
+}

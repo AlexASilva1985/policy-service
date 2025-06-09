@@ -115,4 +115,4 @@ public class FraudAnalysisServiceImpl implements FraudAnalysisService {
         
         return occurrences;
     }
-} 
+}

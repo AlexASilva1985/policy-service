@@ -48,4 +48,4 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Total monthly premium amount must be greater than zero");
         }
     }
-} 
+}

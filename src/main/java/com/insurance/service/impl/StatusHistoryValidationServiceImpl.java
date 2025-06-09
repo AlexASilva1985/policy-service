@@ -154,4 +154,4 @@ public class StatusHistoryValidationServiceImpl implements StatusHistoryValidati
             case REJECTED, CANCELLED -> false;
         };
     }
-} 
+}

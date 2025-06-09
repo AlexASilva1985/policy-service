@@ -47,6 +47,7 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testValidateClaimNumber_Valid() {
+
         assertDoesNotThrow(() -> claimStatusService.validateClaimNumber("CLM12345678"));
         assertDoesNotThrow(() -> claimStatusService.validateClaimNumber("CLM87654321"));
         assertDoesNotThrow(() -> claimStatusService.validateClaimNumber("CLM00000001"));
@@ -55,6 +56,7 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testValidateClaimNumber_Invalid() {
+
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateClaimNumber(null));
         assertThrows(IllegalArgumentException.class, () -> 
@@ -62,9 +64,9 @@ class ClaimStatusServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateClaimNumber("   "));
         assertThrows(IllegalArgumentException.class, () -> 
-            claimStatusService.validateClaimNumber("ABC12345678")); // Wrong prefix
+            claimStatusService.validateClaimNumber("ABC12345678"));
         assertThrows(IllegalArgumentException.class, () -> 
-            claimStatusService.validateClaimNumber("CLM123")); // Too short
+            claimStatusService.validateClaimNumber("CLM123"));
     }
 
     @Test
@@ -84,19 +86,20 @@ class ClaimStatusServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateIncidentDate(null, claim));
         assertThrows(IllegalArgumentException.class, () -> 
-            claimStatusService.validateIncidentDate(LocalDate.now().plusDays(1), claim)); // Future date
+            claimStatusService.validateIncidentDate(LocalDate.now().plusDays(1), claim));
         assertThrows(IllegalArgumentException.class, () -> 
-            claimStatusService.validateIncidentDate(policy.getStartDate().minusDays(1), claim)); // Before policy start
+            claimStatusService.validateIncidentDate(policy.getStartDate().minusDays(1), claim));
     }
 
     @Test
     void testValidateClaimAmount_Valid() {
+
         assertDoesNotThrow(() -> 
             claimStatusService.validateClaimAmount(new BigDecimal("0.01"), claim));
         assertDoesNotThrow(() -> 
             claimStatusService.validateClaimAmount(new BigDecimal("1000.00"), claim));
         assertDoesNotThrow(() -> 
-            claimStatusService.validateClaimAmount(policy.getCoverageAmount(), claim)); // Exact coverage amount
+            claimStatusService.validateClaimAmount(policy.getCoverageAmount(), claim));
         assertDoesNotThrow(() -> 
             claimStatusService.validateClaimAmount(policy.getCoverageAmount().subtract(new BigDecimal("0.01")), claim));
     }
@@ -110,38 +113,34 @@ class ClaimStatusServiceImplTest {
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateClaimAmount(new BigDecimal("-0.01"), claim));
         assertThrows(IllegalArgumentException.class, () -> 
-            claimStatusService.validateClaimAmount(policy.getCoverageAmount().add(new BigDecimal("0.01")), claim)); // Over coverage
+            claimStatusService.validateClaimAmount(policy.getCoverageAmount().add(new BigDecimal("0.01")), claim));
     }
 
     @Test
     void testCanTransitionTo_ValidTransitions() {
-        // From SUBMITTED
+
         assertTrue(claimStatusService.canTransitionTo(ClaimStatus.SUBMITTED, ClaimStatus.UNDER_REVIEW));
         assertTrue(claimStatusService.canTransitionTo(ClaimStatus.SUBMITTED, ClaimStatus.REJECTED));
         
-        // From UNDER_REVIEW
         assertTrue(claimStatusService.canTransitionTo(ClaimStatus.UNDER_REVIEW, ClaimStatus.APPROVED));
         assertTrue(claimStatusService.canTransitionTo(ClaimStatus.UNDER_REVIEW, ClaimStatus.REJECTED));
         
-        // From APPROVED
         assertTrue(claimStatusService.canTransitionTo(ClaimStatus.APPROVED, ClaimStatus.PAID));
     }
 
     @Test
     void testCanTransitionTo_InvalidTransitions() {
-        // From REJECTED - no valid transitions
+
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.REJECTED, ClaimStatus.SUBMITTED));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.REJECTED, ClaimStatus.UNDER_REVIEW));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.REJECTED, ClaimStatus.APPROVED));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.REJECTED, ClaimStatus.PAID));
         
-        // From PAID - no valid transitions  
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.PAID, ClaimStatus.SUBMITTED));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.PAID, ClaimStatus.UNDER_REVIEW));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.PAID, ClaimStatus.APPROVED));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.PAID, ClaimStatus.REJECTED));
         
-        // Invalid direct transitions
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.SUBMITTED, ClaimStatus.APPROVED));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.SUBMITTED, ClaimStatus.PAID));
         assertFalse(claimStatusService.canTransitionTo(ClaimStatus.UNDER_REVIEW, ClaimStatus.SUBMITTED));
@@ -159,35 +158,31 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testUpdateClaimStatus_ValidTransitions() {
-        // SUBMITTED -> UNDER_REVIEW
+
         claim.setStatus(ClaimStatus.SUBMITTED);
         assertDoesNotThrow(() -> claimStatusService.updateClaimStatus(claim, ClaimStatus.UNDER_REVIEW));
         assertEquals(ClaimStatus.UNDER_REVIEW, claim.getStatus());
         
-        // UNDER_REVIEW -> APPROVED
         assertDoesNotThrow(() -> claimStatusService.updateClaimStatus(claim, ClaimStatus.APPROVED));
         assertEquals(ClaimStatus.APPROVED, claim.getStatus());
         
-        // APPROVED -> PAID
         assertDoesNotThrow(() -> claimStatusService.updateClaimStatus(claim, ClaimStatus.PAID));
         assertEquals(ClaimStatus.PAID, claim.getStatus());
     }
 
     @Test
     void testUpdateClaimStatus_InvalidTransitions() {
-        // Try invalid transition SUBMITTED -> PAID
+
         claim.setStatus(ClaimStatus.SUBMITTED);
         assertThrows(IllegalStateException.class, () -> 
             claimStatusService.updateClaimStatus(claim, ClaimStatus.PAID));
         assertEquals(ClaimStatus.SUBMITTED, claim.getStatus()); // Status should not change
         
-        // Try transition from final state PAID
         claim.setStatus(ClaimStatus.PAID);
         assertThrows(IllegalStateException.class, () -> 
             claimStatusService.updateClaimStatus(claim, ClaimStatus.APPROVED));
         assertEquals(ClaimStatus.PAID, claim.getStatus());
         
-        // Try transition from REJECTED
         claim.setStatus(ClaimStatus.REJECTED);
         assertThrows(IllegalStateException.class, () -> 
             claimStatusService.updateClaimStatus(claim, ClaimStatus.APPROVED));
@@ -216,24 +211,21 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testValidateClaim_InvalidFields() {
-        // Test with null claim number
+
         claim.setClaimNumber(null);
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateClaim(claim));
         
-        // Reset and test with null incident date
         claim.setClaimNumber("CLM12345678");
         claim.setIncidentDate(null);
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateClaim(claim));
         
-        // Reset and test with null claim amount
         claim.setIncidentDate(LocalDate.now().minusDays(30));
         claim.setClaimAmount(null);
         assertThrows(IllegalArgumentException.class, () -> 
             claimStatusService.validateClaim(claim));
         
-        // Reset and test with null policy
         claim.setClaimAmount(new BigDecimal("5000.00"));
         claim.setPolicy(null);
         assertThrows(IllegalArgumentException.class, () -> 
@@ -242,45 +234,38 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testValidateClaim_EdgeCases() {
-        // Test with minimum valid amount
+
         claim.setClaimAmount(new BigDecimal("0.01"));
         assertDoesNotThrow(() -> claimStatusService.validateClaim(claim));
         
-        // Test with maximum valid amount (coverage amount)
         claim.setClaimAmount(policy.getCoverageAmount());
         assertDoesNotThrow(() -> claimStatusService.validateClaim(claim));
         
-        // Test with incident date on policy start date
         claim.setIncidentDate(policy.getStartDate());
         assertDoesNotThrow(() -> claimStatusService.validateClaim(claim));
         
-        // Test with incident date within policy period (not end date which might be future)
         claim.setIncidentDate(policy.getStartDate().plusDays(30));
         assertDoesNotThrow(() -> claimStatusService.validateClaim(claim));
     }
 
     @Test
     void testCompleteClaimWorkflow() {
-        // Start with SUBMITTED
+
         claim.setStatus(ClaimStatus.SUBMITTED);
         assertEquals(ClaimStatus.SUBMITTED, claim.getStatus());
         
-        // Move to UNDER_REVIEW
         assertTrue(claimStatusService.canTransitionTo(claim.getStatus(), ClaimStatus.UNDER_REVIEW));
         claimStatusService.updateClaimStatus(claim, ClaimStatus.UNDER_REVIEW);
         assertEquals(ClaimStatus.UNDER_REVIEW, claim.getStatus());
         
-        // Move to APPROVED
         assertTrue(claimStatusService.canTransitionTo(claim.getStatus(), ClaimStatus.APPROVED));
         claimStatusService.updateClaimStatus(claim, ClaimStatus.APPROVED);
         assertEquals(ClaimStatus.APPROVED, claim.getStatus());
         
-        // Move to PAID (final state)
         assertTrue(claimStatusService.canTransitionTo(claim.getStatus(), ClaimStatus.PAID));
         claimStatusService.updateClaimStatus(claim, ClaimStatus.PAID);
         assertEquals(ClaimStatus.PAID, claim.getStatus());
         
-        // Verify no further transitions are possible
         for (ClaimStatus status : ClaimStatus.values()) {
             if (status != ClaimStatus.PAID) {
                 assertFalse(claimStatusService.canTransitionTo(ClaimStatus.PAID, status));
@@ -290,15 +275,13 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testRejectionWorkflow() {
-        // Start with SUBMITTED
+
         claim.setStatus(ClaimStatus.SUBMITTED);
         
-        // Reject directly from SUBMITTED
         assertTrue(claimStatusService.canTransitionTo(claim.getStatus(), ClaimStatus.REJECTED));
         claimStatusService.updateClaimStatus(claim, ClaimStatus.REJECTED);
         assertEquals(ClaimStatus.REJECTED, claim.getStatus());
         
-        // Verify no further transitions are possible from REJECTED
         for (ClaimStatus status : ClaimStatus.values()) {
             if (status != ClaimStatus.REJECTED) {
                 assertFalse(claimStatusService.canTransitionTo(ClaimStatus.REJECTED, status));
@@ -308,12 +291,11 @@ class ClaimStatusServiceImplTest {
 
     @Test
     void testRejectionFromUnderReview() {
-        // Start with SUBMITTED, move to UNDER_REVIEW
+
         claim.setStatus(ClaimStatus.SUBMITTED);
         claimStatusService.updateClaimStatus(claim, ClaimStatus.UNDER_REVIEW);
         assertEquals(ClaimStatus.UNDER_REVIEW, claim.getStatus());
         
-        // Reject from UNDER_REVIEW
         assertTrue(claimStatusService.canTransitionTo(claim.getStatus(), ClaimStatus.REJECTED));
         claimStatusService.updateClaimStatus(claim, ClaimStatus.REJECTED);
         assertEquals(ClaimStatus.REJECTED, claim.getStatus());
@@ -348,12 +330,12 @@ class ClaimStatusServiceImplTest {
     @Test
     void testValidateClaimWithBoundaryAmounts() {
         BigDecimal[] amounts = {
-            new BigDecimal("0.01"), // Minimum
+            new BigDecimal("0.01"),
             new BigDecimal("1.00"),
             new BigDecimal("100.00"),
             new BigDecimal("1000.00"),
             new BigDecimal("10000.00"),
-            policy.getCoverageAmount().subtract(new BigDecimal("0.01")), // Just under coverage
+            policy.getCoverageAmount().subtract(new BigDecimal("0.01")),
             policy.getCoverageAmount() // Exact coverage amount
         };
         
@@ -372,7 +354,6 @@ class ClaimStatusServiceImplTest {
             LocalDate.now().minusMonths(3),
             LocalDate.now().minusMonths(1),
             LocalDate.now().minusDays(1)
-            // Removed policy.getEndDate() since it might be in the future
         };
         
         for (LocalDate date : dates) {

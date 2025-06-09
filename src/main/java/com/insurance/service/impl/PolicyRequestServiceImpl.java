@@ -40,7 +40,6 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
     @Transactional
     public PolicyRequest createPolicyRequest(PolicyRequest request) {
 
-        // Validações de negócio
         validatePolicyRequestInput(request);
         
         request.setStatus(PolicyStatus.RECEIVED);
@@ -74,7 +73,6 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
         }
         
         List<PolicyRequest> requests = repository.findByCustomerId(customerId);
-
         return requests;
     }
 
@@ -91,12 +89,10 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
         
         PolicyRequest request = findById(id);
 
-        // Usar o PolicyStatusService para validar e atualizar
         PolicyStatus previousStatus = request.getStatus();
         policyStatusService.updatePolicyStatus(request, newStatus);
         request = repository.save(request);
 
-        // Publicar evento apropriado
         publishStatusChangeEvent(request, previousStatus, newStatus);
 
         return request;
@@ -112,24 +108,20 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
         try {
             PolicyRequest request = findById(id);
 
-            // Verificar se análise de risco foi realizada
             if (request.getRiskAnalysis() == null) {
                 String message = "Cannot validate policy without risk analysis";
                 throw new BusinessException(message, "MISSING_RISK_ANALYSIS");
             }
 
-            // Verificar se já está validada
             if (request.getStatus() == PolicyStatus.VALIDATED) {
                 return PolicyValidationResponseDTO.success(id, PolicyStatus.VALIDATED);
             }
 
-            // Verificar se pode ser validada usando PolicyStatusService
             if (!policyStatusService.canTransitionTo(request.getStatus(), PolicyStatus.VALIDATED)) {
                 String message = String.format("Cannot validate policy in current status: %s", request.getStatus());
                 throw new BusinessException(message, "INVALID_STATUS_FOR_VALIDATION");
             }
 
-            // Realizar validação de negócio
             CustomerRiskType riskType = request.getRiskAnalysis().getClassification();
             boolean isValid = validateInsuranceAmount(request.getCategory(),
                                                     request.getInsuredAmount(),
@@ -165,12 +157,10 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
         
         PolicyRequest request = findById(id);
         
-        // Verificar se já possui análise de risco
         if (request.getRiskAnalysis() != null) {
             throw new BusinessException("Policy already has risk analysis", "DUPLICATE_RISK_ANALYSIS");
         }
         
-        // Verificar status da política
         if (request.getStatus() != PolicyStatus.RECEIVED) {
             throw new BusinessException("Cannot process fraud analysis in current status", "INVALID_STATUS_FOR_ANALYSIS");
         }
@@ -195,7 +185,6 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
             return response;
 
         } catch (Exception e) {
-            // Rejeitar a política em caso de erro na análise
                 request.setStatus(PolicyStatus.REJECTED);
                 repository.save(request);
                 eventPublisher.publish(
@@ -216,7 +205,6 @@ public class PolicyRequestServiceImpl implements PolicyRequestService {
         
         PolicyRequest request = findById(id);
         
-        // Verificar se a política está no status correto para pagamento
         if (request.getStatus() != PolicyStatus.VALIDATED) {
             String message = String.format("Cannot process payment for policy in status: %s", request.getStatus());
             throw new BusinessException(message, "INVALID_STATUS_FOR_PAYMENT");

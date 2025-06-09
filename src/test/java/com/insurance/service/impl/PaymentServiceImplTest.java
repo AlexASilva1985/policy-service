@@ -185,6 +185,7 @@ class PaymentServiceImplTest {
 
     @Test
     void testProcessPaymentWithZeroAmount() {
+
         PolicyRequest mockRequest = mock(PolicyRequest.class);
         when(mockRequest.getId()).thenReturn(requestId);
         when(mockRequest.getCustomerId()).thenReturn(customerId);
@@ -200,6 +201,7 @@ class PaymentServiceImplTest {
 
     @Test
     void testProcessPaymentWithNegativeAmount() {
+
         PolicyRequest mockRequest = mock(PolicyRequest.class);
         when(mockRequest.getId()).thenReturn(requestId);
         when(mockRequest.getCustomerId()).thenReturn(customerId);
@@ -215,6 +217,7 @@ class PaymentServiceImplTest {
 
     @Test
     void testProcessPaymentWithAllPaymentMethods() {
+
         for (PaymentMethod method : PaymentMethod.values()) {
             policyRequest.setPaymentMethod(method);
             paymentService.processPayment(policyRequest);
