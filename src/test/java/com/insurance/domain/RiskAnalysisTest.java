@@ -1,495 +1,504 @@
 package com.insurance.domain;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.insurance.domain.enums.CustomerRiskType;
-import java.time.LocalDateTime;
-import java.util.List;
+import com.insurance.service.RiskAnalysisValidationService;
+import com.insurance.service.impl.RiskAnalysisValidationServiceImpl;
+import com.insurance.service.impl.RiskOccurrenceValidationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Test class for RiskAnalysis entity after refactoring to follow Single Responsibility Principle.
+ * The entity now only handles JPA mapping, while business logic is tested through RiskAnalysisValidationService.
+ */
 class RiskAnalysisTest {
 
     private RiskAnalysis riskAnalysis;
-    private LocalDateTime analyzedAt;
+    private RiskAnalysisValidationService validationService;
+    private LocalDateTime now;
 
     @BeforeEach
     void setUp() {
+        // Create validation service with its dependency
+        RiskOccurrenceValidationServiceImpl occurrenceValidationService = new RiskOccurrenceValidationServiceImpl();
+        validationService = new RiskAnalysisValidationServiceImpl(occurrenceValidationService);
+        
         riskAnalysis = new RiskAnalysis();
-        analyzedAt = LocalDateTime.now().minusHours(1);
+        now = LocalDateTime.now();
     }
 
+    // ========== ENTITY MAPPING TESTS ==========
+
     @Test
-    void testSuccessfulRiskAnalysisCreation() {
+    void testCreateValidRiskAnalysis() {
         riskAnalysis.setClassification(CustomerRiskType.REGULAR);
-        riskAnalysis.setAnalyzedAt(analyzedAt);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
 
         assertEquals(CustomerRiskType.REGULAR, riskAnalysis.getClassification());
-        assertEquals(analyzedAt, riskAnalysis.getAnalyzedAt());
+        assertEquals(now.minusHours(1), riskAnalysis.getAnalyzedAt());
         assertNotNull(riskAnalysis.getOccurrences());
         assertTrue(riskAnalysis.getOccurrences().isEmpty());
     }
 
     @Test
-    void testValidateWithValidData() {
-        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
-        riskAnalysis.setAnalyzedAt(analyzedAt);
-
-        riskAnalysis.validate();
-    }
-
-    @Test
-    void testValidateWithNullClassification() {
-        riskAnalysis.setAnalyzedAt(analyzedAt);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.validate()
-        );
-
-        assertEquals("classification is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullAnalyzedAt() {
-        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.validate()
-        );
-
-        assertEquals("analyzedAt is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithFutureAnalyzedAt() {
-        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
+    void testEntitySettersAndGetters() {
+        RiskAnalysis testAnalysis = new RiskAnalysis();
         
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-            riskAnalysis.setAnalyzedAt(LocalDateTime.now().plusHours(1))
-        );
-
-        assertEquals("analyzedAt cannot be a future date", exception.getMessage());
-    }
-
-    @Test
-    void testSetClassificationWithValidValues() {
-        CustomerRiskType[] riskTypes = {
-            CustomerRiskType.HIGH_RISK,
-            CustomerRiskType.REGULAR,
-            CustomerRiskType.PREFERRED,
-            CustomerRiskType.HIGH_RISK
-        };
-
-        for (CustomerRiskType riskType : riskTypes) {
-            riskAnalysis.setClassification(riskType);
-            assertEquals(riskType, riskAnalysis.getClassification());
-        }
-    }
-
-    @Test
-    void testSetClassificationWithNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.setClassification(null)
-        );
-
-        assertEquals("classification cannot be null", exception.getMessage());
-    }
-
-    @Test
-    void testSetAnalyzedAtWithValidDate() {
-        LocalDateTime pastDate = LocalDateTime.now().minusDays(1);
-        LocalDateTime currentDate = LocalDateTime.now();
-
-        riskAnalysis.setAnalyzedAt(pastDate);
-        assertEquals(pastDate, riskAnalysis.getAnalyzedAt());
-
-        riskAnalysis.setAnalyzedAt(currentDate);
-        assertEquals(currentDate, riskAnalysis.getAnalyzedAt());
-    }
-
-    @Test
-    void testSetAnalyzedAtWithNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.setAnalyzedAt(null)
-        );
-
-        assertEquals("analyzedAt cannot be null", exception.getMessage());
-    }
-
-    @Test
-    void testSetAnalyzedAtWithFutureDate() {
-        LocalDateTime futureDate = LocalDateTime.now().plusHours(1);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.setAnalyzedAt(futureDate)
-        );
-
-        assertEquals("analyzedAt cannot be a future date", exception.getMessage());
-    }
-
-    @Test
-    void testAddOccurrenceWithValidOccurrence() {
-        RiskOccurrence occurrence = createValidRiskOccurrence();
+        // Test all setters and getters work without business validation
+        testAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
+        assertEquals(CustomerRiskType.HIGH_RISK, testAnalysis.getClassification());
         
-        riskAnalysis.addOccurrence(occurrence);
+        LocalDateTime futureTime = LocalDateTime.now().plusDays(1); // Future time - no validation in entity
+        testAnalysis.setAnalyzedAt(futureTime);
+        assertEquals(futureTime, testAnalysis.getAnalyzedAt());
+        
+        RiskOccurrence occurrence = new RiskOccurrence();
+        testAnalysis.getOccurrences().add(occurrence);
+        assertEquals(1, testAnalysis.getOccurrences().size());
+        assertTrue(testAnalysis.getOccurrences().contains(occurrence));
+    }
 
+    // ========== BUSINESS LOGIC TESTS (Via RiskAnalysisValidationService) ==========
+
+    @Test
+    void testClassificationValidationViaService() {
+        // Valid classifications
+        assertDoesNotThrow(() -> validationService.validateClassification(CustomerRiskType.REGULAR));
+        assertDoesNotThrow(() -> validationService.validateClassification(CustomerRiskType.HIGH_RISK));
+        assertDoesNotThrow(() -> validationService.validateClassification(CustomerRiskType.PREFERRED));
+        
+        // Invalid classification
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateClassification(null));
+    }
+
+    @Test
+    void testAnalyzedAtValidationViaService() {
+        // Valid timestamps
+        assertDoesNotThrow(() -> validationService.validateAnalyzedAt(now.minusHours(1)));
+        assertDoesNotThrow(() -> validationService.validateAnalyzedAt(now.minusDays(1)));
+        
+        // Invalid timestamps
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateAnalyzedAt(null));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateAnalyzedAt(now.plusHours(1))); // Future time
+    }
+
+    @Test
+    void testOccurrenceManagementViaService() {
+        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        RiskOccurrence occurrence = new RiskOccurrence();
+        occurrence.setType("FRAUD");
+        occurrence.setDescription("Suspicious activity detected");
+        occurrence.setCreatedAt(now.minusHours(2));
+        occurrence.setUpdatedAt(now.minusHours(2));
+        
+        // Test adding occurrence
+        assertDoesNotThrow(() -> validationService.addOccurrence(riskAnalysis, occurrence));
         assertEquals(1, riskAnalysis.getOccurrences().size());
         assertTrue(riskAnalysis.getOccurrences().contains(occurrence));
-    }
-
-    @Test
-    void testAddOccurrenceWithNullOccurrence() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.addOccurrence(null)
-        );
-
-        assertEquals("occurrence cannot be null", exception.getMessage());
-    }
-
-    @Test
-    void testAddMultipleOccurrences() {
-        RiskOccurrence occurrence1 = createValidRiskOccurrence();
-        RiskOccurrence occurrence2 = createValidRiskOccurrence();
-        occurrence2.setType("IDENTITY_THEFT");
-
-        riskAnalysis.addOccurrence(occurrence1);
-        riskAnalysis.addOccurrence(occurrence2);
-
-        assertEquals(2, riskAnalysis.getOccurrences().size());
-        assertTrue(riskAnalysis.getOccurrences().contains(occurrence1));
-        assertTrue(riskAnalysis.getOccurrences().contains(occurrence2));
-    }
-
-    @Test
-    void testRemoveOccurrenceWithValidOccurrence() {
-        RiskOccurrence occurrence = createValidRiskOccurrence();
-        riskAnalysis.addOccurrence(occurrence);
-
-        assertEquals(1, riskAnalysis.getOccurrences().size());
-
-        riskAnalysis.removeOccurrence(occurrence);
-
-        assertTrue(riskAnalysis.getOccurrences().isEmpty());
-    }
-
-    @Test
-    void testRemoveOccurrenceWithNullOccurrence() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.removeOccurrence(null)
-        );
-
-        assertEquals("occurrence cannot be null", exception.getMessage());
-    }
-
-    @Test
-    void testRemoveNonExistentOccurrence() {
-        RiskOccurrence occurrence1 = createValidRiskOccurrence();
-        RiskOccurrence occurrence2 = createValidRiskOccurrence();
-        occurrence2.setType("IDENTITY_THEFT");
-
-        riskAnalysis.addOccurrence(occurrence1);
-
-        riskAnalysis.removeOccurrence(occurrence2);
-
-        assertEquals(1, riskAnalysis.getOccurrences().size());
-        assertTrue(riskAnalysis.getOccurrences().contains(occurrence1));
-    }
-
-    @Test
-    void testOccurrencesListInitialization() {
-        RiskAnalysis newRiskAnalysis = new RiskAnalysis();
         
-        List<RiskOccurrence> occurrences = newRiskAnalysis.getOccurrences();
-        assertNotNull(occurrences);
-        assertTrue(occurrences.isEmpty());
+        // Test removing occurrence
+        assertDoesNotThrow(() -> validationService.removeOccurrence(riskAnalysis, occurrence));
+        assertEquals(0, riskAnalysis.getOccurrences().size());
+        assertFalse(riskAnalysis.getOccurrences().contains(occurrence));
     }
 
     @Test
-    void testInheritanceFromBaseEntity() {
+    void testOccurrenceValidationViaService() {
+        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        // Invalid occurrences
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.addOccurrence(riskAnalysis, null));
+        
+        RiskOccurrence invalidOccurrence = new RiskOccurrence();
+        // Missing required fields - should fail validation
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.addOccurrence(riskAnalysis, invalidOccurrence));
+    }
+
+    @Test
+    void testCompleteValidationViaService() {
+        // Valid risk analysis
+        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        assertDoesNotThrow(() -> validationService.validateRiskAnalysis(riskAnalysis));
+        
+        // Invalid risk analysis - missing required fields
+        RiskAnalysis invalidAnalysis = new RiskAnalysis();
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateRiskAnalysis(invalidAnalysis));
+    }
+
+    // ========== INTEGRATION TESTS ==========
+
+    @Test
+    void testCompleteWorkflowWithService() {
+        // Build valid risk analysis step by step with validation
+        RiskAnalysis workflowAnalysis = new RiskAnalysis();
+        workflowAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
+        workflowAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        // Validate individual components
+        assertDoesNotThrow(() -> validationService.validateClassification(workflowAnalysis.getClassification()));
+        assertDoesNotThrow(() -> validationService.validateAnalyzedAt(workflowAnalysis.getAnalyzedAt()));
+        
+        // Add occurrences with validation
+        RiskOccurrence occurrence1 = new RiskOccurrence();
+        occurrence1.setType("FRAUD");
+        occurrence1.setDescription("Previous fraud claim");
+        occurrence1.setCreatedAt(now.minusDays(1));
+        occurrence1.setUpdatedAt(now.minusDays(1));
+        
+        RiskOccurrence occurrence2 = new RiskOccurrence();
+        occurrence2.setType("SUSPICIOUS_ACTIVITY");
+        occurrence2.setDescription("Multiple claims in short period");
+        occurrence2.setCreatedAt(now.minusHours(2));
+        occurrence2.setUpdatedAt(now.minusHours(2));
+        
+        assertDoesNotThrow(() -> validationService.addOccurrence(workflowAnalysis, occurrence1));
+        assertDoesNotThrow(() -> validationService.addOccurrence(workflowAnalysis, occurrence2));
+        
+        assertEquals(2, workflowAnalysis.getOccurrences().size());
+        
+        // Validate complete analysis
+        assertDoesNotThrow(() -> validationService.validateRiskAnalysis(workflowAnalysis));
+    }
+
+    @Test
+    void testEntityInheritanceFromBaseEntity() {
+        // Test inheritance structure
         assertTrue(riskAnalysis instanceof BaseEntity);
         
-        riskAnalysis.setCreatedBy("admin");
-        riskAnalysis.setUpdatedBy("system");
+        // Test that we can set/get BaseEntity fields
+        UUID testId = UUID.randomUUID();
+        riskAnalysis.setId(testId);
+        assertEquals(testId, riskAnalysis.getId());
         
-        assertEquals("admin", riskAnalysis.getCreatedBy());
-        assertEquals("system", riskAnalysis.getUpdatedBy());
-    }
-
-    private RiskOccurrence createValidRiskOccurrence() {
-        RiskOccurrence occurrence = new RiskOccurrence();
-        occurrence.setType("FRAUD_ATTEMPT");
-        occurrence.setDescription("Suspicious activity detected");
-        occurrence.setCreatedAt(LocalDateTime.now().minusDays(1));
-        occurrence.setUpdatedAt(LocalDateTime.now());
-        return occurrence;
-    }
-
-    @Test
-    void testValidateWithFutureAnalyzedAtDirectly() {
-        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now().minusHours(1)); // Valid date first
+        String testUser = "test-user";
+        riskAnalysis.setCreatedBy(testUser);
+        assertEquals(testUser, riskAnalysis.getCreatedBy());
         
-        LocalDateTime futureDate = LocalDateTime.now().plusHours(1);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-            riskAnalysis.setAnalyzedAt(futureDate)
-        );
-        assertEquals("analyzedAt cannot be a future date", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithAllNullFields() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskAnalysis.validate()
-        );
-        assertEquals("classification is required", exception.getMessage());
+        riskAnalysis.setUpdatedBy(testUser);
+        assertEquals(testUser, riskAnalysis.getUpdatedBy());
     }
 
     @Test
     void testAllCustomerRiskTypes() {
-        CustomerRiskType[] allTypes = {
-            CustomerRiskType.REGULAR,
-            CustomerRiskType.HIGH_RISK,
-            CustomerRiskType.PREFERRED,
-            CustomerRiskType.NO_INFORMATION
-        };
-
-        for (CustomerRiskType type : allTypes) {
-            riskAnalysis.setClassification(type);
-            assertEquals(type, riskAnalysis.getClassification());
+        for (CustomerRiskType riskType : CustomerRiskType.values()) {
+            RiskAnalysis testAnalysis = new RiskAnalysis();
+            testAnalysis.setClassification(riskType);
+            assertEquals(riskType, testAnalysis.getClassification());
+            
+            // Validate through service
+            assertDoesNotThrow(() -> validationService.validateClassification(riskType));
         }
     }
 
     @Test
-    void testAnalyzedAtWithDifferentTimeFormats() {
-
-        LocalDateTime preciseTime = LocalDateTime.of(2023, 12, 25, 14, 30, 45, 123456789);
-        riskAnalysis.setAnalyzedAt(preciseTime);
-        assertEquals(preciseTime, riskAnalysis.getAnalyzedAt());
-
-        LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
-        riskAnalysis.setAnalyzedAt(startOfDay);
-        assertEquals(startOfDay, riskAnalysis.getAnalyzedAt());
-
-        LocalDateTime recentPast = LocalDateTime.now().minusMinutes(5);
-        riskAnalysis.setAnalyzedAt(recentPast);
-        assertEquals(recentPast, riskAnalysis.getAnalyzedAt());
-    }
-
-    @Test
-    void testOccurrenceManagementWorkflow() {
-        RiskOccurrence occurrence1 = createValidRiskOccurrence();
-        occurrence1.setType("CREDIT_CARD_FRAUD");
+    void testRiskAnalysisWithMultipleOccurrences() {
+        riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
         
-        RiskOccurrence occurrence2 = createValidRiskOccurrence();
-        occurrence2.setType("IDENTITY_THEFT");
+        // Create multiple occurrences
+        RiskOccurrence occurrence1 = new RiskOccurrence();
+        occurrence1.setType("FRAUD");
+        occurrence1.setDescription("Previous fraud claim detected");
+        occurrence1.setCreatedAt(now.minusDays(1));
+        occurrence1.setUpdatedAt(now.minusDays(1));
         
-        RiskOccurrence occurrence3 = createValidRiskOccurrence();
-        occurrence3.setType("MONEY_LAUNDERING");
-
-        riskAnalysis.addOccurrence(occurrence1);
-        riskAnalysis.addOccurrence(occurrence2);
-        riskAnalysis.addOccurrence(occurrence3);
+        RiskOccurrence occurrence2 = new RiskOccurrence();
+        occurrence2.setType("SUSPICIOUS_ACTIVITY");
+        occurrence2.setDescription("Multiple claims in short period");
+        occurrence2.setCreatedAt(now.minusHours(2));
+        occurrence2.setUpdatedAt(now.minusHours(2));
+        
+        RiskOccurrence occurrence3 = new RiskOccurrence();
+        occurrence3.setType("IDENTITY_THEFT");
+        occurrence3.setDescription("Document verification failed");
+        occurrence3.setCreatedAt(now.minusHours(3));
+        occurrence3.setUpdatedAt(now.minusHours(3));
+        
+        assertDoesNotThrow(() -> validationService.addOccurrence(riskAnalysis, occurrence1));
+        assertDoesNotThrow(() -> validationService.addOccurrence(riskAnalysis, occurrence2));
+        assertDoesNotThrow(() -> validationService.addOccurrence(riskAnalysis, occurrence3));
         
         assertEquals(3, riskAnalysis.getOccurrences().size());
-
-        riskAnalysis.removeOccurrence(occurrence2);
-        assertEquals(2, riskAnalysis.getOccurrences().size());
         assertTrue(riskAnalysis.getOccurrences().contains(occurrence1));
+        assertTrue(riskAnalysis.getOccurrences().contains(occurrence2));
         assertTrue(riskAnalysis.getOccurrences().contains(occurrence3));
-
-        riskAnalysis.removeOccurrence(occurrence1);
-        riskAnalysis.removeOccurrence(occurrence3);
-        assertTrue(riskAnalysis.getOccurrences().isEmpty());
     }
 
     @Test
-    void testCompleteRiskAnalysisWorkflow() {
-
-        riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now().minusHours(2));
-
-        RiskOccurrence fraud = createValidRiskOccurrence();
-        fraud.setType("FRAUD_ATTEMPT");
-        fraud.setDescription("Multiple failed login attempts from different locations");
-
-        RiskOccurrence identity = createValidRiskOccurrence();
-        identity.setType("IDENTITY_VERIFICATION_FAILED");
-        identity.setDescription("Unable to verify customer identity documents");
-
-        riskAnalysis.addOccurrence(fraud);
-        riskAnalysis.addOccurrence(identity);
-
-        riskAnalysis.validate();
-
-        assertEquals(CustomerRiskType.HIGH_RISK, riskAnalysis.getClassification());
-        assertEquals(2, riskAnalysis.getOccurrences().size());
-        assertNotNull(riskAnalysis.getAnalyzedAt());
-    }
-
-    @Test
-    void testRiskAnalysisWithNoInformationClassification() {
-        riskAnalysis.setClassification(CustomerRiskType.NO_INFORMATION);
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now().minusDays(1));
-
-        riskAnalysis.validate();
-
-        assertEquals(CustomerRiskType.NO_INFORMATION, riskAnalysis.getClassification());
-        assertTrue(riskAnalysis.getOccurrences().isEmpty());
-    }
-
-    @Test
-    void testRiskAnalysisWithPreferredCustomer() {
-        riskAnalysis.setClassification(CustomerRiskType.PREFERRED);
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now().minusDays(7));
-
-        riskAnalysis.validate();
-
-        assertEquals(CustomerRiskType.PREFERRED, riskAnalysis.getClassification());
-        assertTrue(riskAnalysis.getOccurrences().isEmpty());
-    }
-
-    @Test
-    void testAddOccurrenceWithInvalidOccurrence() {
-
-        RiskOccurrence invalidOccurrence = new RiskOccurrence();
-
-        Exception exception = assertThrows(Exception.class, () -> 
-            riskAnalysis.addOccurrence(invalidOccurrence)
-        );
-        assertNotNull(exception);
-    }
-
-    @Test
-    void testOccurrenceListModification() {
-        RiskOccurrence occurrence1 = createValidRiskOccurrence();
-        RiskOccurrence occurrence2 = createValidRiskOccurrence();
-        occurrence2.setType("SUSPICIOUS_TRANSACTION");
-
-        riskAnalysis.addOccurrence(occurrence1);
+    void testRiskAnalysisWithEmptyOccurrencesList() {
+        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
         
-        List<RiskOccurrence> occurrences = riskAnalysis.getOccurrences();
-        assertEquals(1, occurrences.size());
-
-        riskAnalysis.addOccurrence(occurrence2);
-        assertEquals(2, riskAnalysis.getOccurrences().size());
+        // Clear occurrences list
+        riskAnalysis.getOccurrences().clear();
+        
+        assertEquals(0, riskAnalysis.getOccurrences().size());
+        assertTrue(riskAnalysis.getOccurrences().isEmpty());
+        
+        // Should still be valid without occurrences
+        assertDoesNotThrow(() -> validationService.validateRiskAnalysis(riskAnalysis));
     }
 
     @Test
-    void testRiskAnalysisEquality() {
+    void testRiskAnalysisOccurrenceManipulation() {
+        riskAnalysis.setClassification(CustomerRiskType.PREFERRED);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        RiskOccurrence occurrence = new RiskOccurrence();
+        occurrence.setType("MINOR_INCIDENT");
+        occurrence.setDescription("Small previous claim");
+        occurrence.setCreatedAt(now.minusHours(2));
+        occurrence.setUpdatedAt(now.minusHours(2));
+        
+        // Add occurrence
+        assertDoesNotThrow(() -> validationService.addOccurrence(riskAnalysis, occurrence));
+        assertEquals(1, riskAnalysis.getOccurrences().size());
+        
+        // Remove occurrence
+        assertDoesNotThrow(() -> validationService.removeOccurrence(riskAnalysis, occurrence));
+        assertEquals(0, riskAnalysis.getOccurrences().size());
+        
+        // Try to remove non-existent occurrence (should not fail)
+        assertDoesNotThrow(() -> validationService.removeOccurrence(riskAnalysis, occurrence));
+        assertEquals(0, riskAnalysis.getOccurrences().size());
+    }
+
+    @Test
+    void testRiskAnalysisWithDifferentTimeZones() {
+        LocalDateTime[] testTimes = {
+            LocalDateTime.of(2023, 1, 1, 0, 0, 0),
+            LocalDateTime.of(2023, 6, 15, 12, 30, 45),
+            LocalDateTime.of(2023, 12, 31, 23, 59, 59),
+            now.minusYears(1),
+            now.minusMonths(6),
+            now.minusDays(1),
+            now.minusHours(1),
+            now.minusMinutes(30)
+        };
+        
+        for (LocalDateTime testTime : testTimes) {
+            RiskAnalysis timeAnalysis = new RiskAnalysis();
+            timeAnalysis.setClassification(CustomerRiskType.REGULAR);
+            timeAnalysis.setAnalyzedAt(testTime);
+            
+            assertEquals(testTime, timeAnalysis.getAnalyzedAt());
+            
+            if (!testTime.isAfter(now)) {
+                assertDoesNotThrow(() -> validationService.validateRiskAnalysis(timeAnalysis));
+            }
+        }
+    }
+
+    @Test
+    void testRiskAnalysisEqualsAndHashCode() {
         RiskAnalysis analysis1 = new RiskAnalysis();
-        analysis1.setClassification(CustomerRiskType.REGULAR);
-        analysis1.setAnalyzedAt(analyzedAt);
+        analysis1.setId(UUID.randomUUID());
+        analysis1.setClassification(CustomerRiskType.HIGH_RISK);
+        analysis1.setAnalyzedAt(now);
 
         RiskAnalysis analysis2 = new RiskAnalysis();
-        analysis2.setClassification(CustomerRiskType.REGULAR);
-        analysis2.setAnalyzedAt(analyzedAt);
+        analysis2.setId(analysis1.getId());
+        analysis2.setClassification(CustomerRiskType.HIGH_RISK);
+        analysis2.setAnalyzedAt(now);
 
-        assertEquals(analysis1.getClassification(), analysis2.getClassification());
-        assertEquals(analysis1.getAnalyzedAt(), analysis2.getAnalyzedAt());
+        assertEquals(analysis1, analysis2);
+        assertEquals(analysis1.hashCode(), analysis2.hashCode());
     }
 
     @Test
     void testRiskAnalysisToString() {
-        riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
-        riskAnalysis.setAnalyzedAt(analyzedAt);
-
+        riskAnalysis.setClassification(CustomerRiskType.PREFERRED);
+        riskAnalysis.setAnalyzedAt(now);
+        
         String toString = riskAnalysis.toString();
         assertNotNull(toString);
-        assertTrue(toString.length() > 0);
+        assertTrue(toString.contains("RiskAnalysis"));
+        assertTrue(toString.contains("PREFERRED"));
     }
 
     @Test
-    void testRiskAnalysisHashCode() {
-        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
-        riskAnalysis.setAnalyzedAt(analyzedAt);
-
-        int hashCode = riskAnalysis.hashCode();
-
-        assertEquals(hashCode, riskAnalysis.hashCode());
+    void testRiskAnalysisWithNullOccurrencesList() {
+        // Test that entity can handle null occurrences list (should initialize to empty)
+        RiskAnalysis nullListAnalysis = new RiskAnalysis();
+        assertNotNull(nullListAnalysis.getOccurrences());
+        assertTrue(nullListAnalysis.getOccurrences().isEmpty());
     }
 
     @Test
-    void testAnalyzedAtBoundaryConditions() {
-
-        LocalDateTime now = LocalDateTime.now();
-        riskAnalysis.setAnalyzedAt(now);
-        assertEquals(now, riskAnalysis.getAnalyzedAt());
-
-        LocalDateTime justBefore = LocalDateTime.now().minusNanos(1);
-        riskAnalysis.setAnalyzedAt(justBefore);
-        assertEquals(justBefore, riskAnalysis.getAnalyzedAt());
-
-        LocalDateTime veryOld = LocalDateTime.of(2000, 1, 1, 0, 0, 0);
-        riskAnalysis.setAnalyzedAt(veryOld);
-        assertEquals(veryOld, riskAnalysis.getAnalyzedAt());
-    }
-
-    @Test
-    void testOccurrenceRemovalOfNonExistentItem() {
-        RiskOccurrence occurrence1 = createValidRiskOccurrence();
-        RiskOccurrence occurrence2 = createValidRiskOccurrence();
-        occurrence2.setType("DIFFERENT_TYPE");
-
-        riskAnalysis.addOccurrence(occurrence1);
-        assertEquals(1, riskAnalysis.getOccurrences().size());
-
-        riskAnalysis.removeOccurrence(occurrence2);
+    void testRiskAnalysisClassificationChanges() {
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
         
-        assertEquals(1, riskAnalysis.getOccurrences().size());
-        assertTrue(riskAnalysis.getOccurrences().contains(occurrence1));
-    }
-
-    @Test
-    void testRiskAnalysisWithMultipleOccurrenceTypes() {
-        riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now().minusHours(1));
-
-        String[] riskTypes = {
-            "FRAUD_ATTEMPT",
-            "IDENTITY_THEFT", 
-            "MONEY_LAUNDERING",
-            "SUSPICIOUS_TRANSACTION",
-            "CREDIT_CARD_ABUSE",
-            "DOCUMENT_FORGERY"
-        };
-
-        for (String type : riskTypes) {
-            RiskOccurrence occurrence = createValidRiskOccurrence();
-            occurrence.setType(type);
-            occurrence.setDescription("Risk occurrence of type: " + type);
-            riskAnalysis.addOccurrence(occurrence);
+        // Test changing classification multiple times
+        CustomerRiskType[] classifications = CustomerRiskType.values();
+        for (CustomerRiskType classification : classifications) {
+            riskAnalysis.setClassification(classification);
+            assertEquals(classification, riskAnalysis.getClassification());
+            
+            // Validate each classification change
+            assertDoesNotThrow(() -> validationService.validateClassification(classification));
         }
-
-        assertEquals(riskTypes.length, riskAnalysis.getOccurrences().size());
-        riskAnalysis.validate();
     }
 
     @Test
-    void testSetClassificationAfterInitialization() {
-
-        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
-        assertEquals(CustomerRiskType.REGULAR, riskAnalysis.getClassification());
-
+    void testRiskAnalysisOccurrenceTypes() {
         riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
-        assertEquals(CustomerRiskType.HIGH_RISK, riskAnalysis.getClassification());
-
-        riskAnalysis.setClassification(CustomerRiskType.PREFERRED);
-        assertEquals(CustomerRiskType.PREFERRED, riskAnalysis.getClassification());
-
-        riskAnalysis.setClassification(CustomerRiskType.NO_INFORMATION);
-        assertEquals(CustomerRiskType.NO_INFORMATION, riskAnalysis.getClassification());
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        String[] occurrenceTypes = {
+            "FRAUD", "IDENTITY_THEFT", "MONEY_LAUNDERING", 
+            "SUSPICIOUS_ACTIVITY", "DOCUMENT_FORGERY", "CREDIT_ABUSE",
+            "MULTIPLE_CLAIMS", "HIGH_VALUE_CLAIM", "FREQUENT_CLAIMS"
+        };
+        
+        for (String type : occurrenceTypes) {
+            RiskOccurrence occurrence = new RiskOccurrence();
+            occurrence.setType(type);
+            occurrence.setDescription("Test occurrence for " + type);
+            occurrence.setCreatedAt(now.minusHours(2));
+            occurrence.setUpdatedAt(now.minusHours(2));
+            
+            assertDoesNotThrow(() -> validationService.addOccurrence(riskAnalysis, occurrence));
+        }
+        
+        assertEquals(occurrenceTypes.length, riskAnalysis.getOccurrences().size());
     }
 
     @Test
-    void testAnalyzedAtTimePrecision() {
-        LocalDateTime timeWithNanos = LocalDateTime.now().minusHours(1).withNano(123456789);
-        riskAnalysis.setAnalyzedAt(timeWithNanos);
+    void testRiskAnalysisComplexScenarios() {
+        // Scenario 1: Regular customer with no issues
+        RiskAnalysis regularAnalysis = new RiskAnalysis();
+        regularAnalysis.setClassification(CustomerRiskType.REGULAR);
+        regularAnalysis.setAnalyzedAt(now.minusHours(1));
+        assertDoesNotThrow(() -> validationService.validateRiskAnalysis(regularAnalysis));
         
-        assertEquals(timeWithNanos, riskAnalysis.getAnalyzedAt());
+        // Scenario 2: High risk customer with multiple occurrences
+        RiskAnalysis highRiskAnalysis = new RiskAnalysis();
+        highRiskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
+        highRiskAnalysis.setAnalyzedAt(now.minusHours(2));
+        
+        for (int i = 0; i < 5; i++) {
+            RiskOccurrence occurrence = new RiskOccurrence();
+            occurrence.setType("RISK_" + i);
+            occurrence.setDescription("Risk occurrence " + i);
+            occurrence.setCreatedAt(now.minusHours(3 + i));
+            occurrence.setUpdatedAt(now.minusHours(3 + i));
+            
+            assertDoesNotThrow(() -> validationService.addOccurrence(highRiskAnalysis, occurrence));
+        }
+        
+        assertEquals(5, highRiskAnalysis.getOccurrences().size());
+        assertDoesNotThrow(() -> validationService.validateRiskAnalysis(highRiskAnalysis));
+        
+        // Scenario 3: Preferred customer - minimal risk
+        RiskAnalysis preferredAnalysis = new RiskAnalysis();
+        preferredAnalysis.setClassification(CustomerRiskType.PREFERRED);
+        preferredAnalysis.setAnalyzedAt(now.minusMinutes(30));
+        assertDoesNotThrow(() -> validationService.validateRiskAnalysis(preferredAnalysis));
+    }
+
+    @Test
+    void testRiskAnalysisFieldValidationEdgeCases() {
+        // Test null classification
+        RiskAnalysis nullClassification = new RiskAnalysis();
+        nullClassification.setAnalyzedAt(now);
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateRiskAnalysis(nullClassification));
+        
+        // Test null analyzed at
+        RiskAnalysis nullAnalyzedAt = new RiskAnalysis();
+        nullAnalyzedAt.setClassification(CustomerRiskType.REGULAR);
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateRiskAnalysis(nullAnalyzedAt));
+        
+        // Test null analysis object
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateRiskAnalysis(null));
+    }
+
+    @Test
+    void testRiskAnalysisOccurrenceCollectionBehavior() {
+        riskAnalysis.setClassification(CustomerRiskType.REGULAR);
+        riskAnalysis.setAnalyzedAt(now.minusHours(1));
+        
+        // Test that occurrences list is modifiable
+        List<RiskOccurrence> occurrences = riskAnalysis.getOccurrences();
+        assertNotNull(occurrences);
+        assertTrue(occurrences instanceof List);
+        
+        // Test direct list manipulation
+        RiskOccurrence directOccurrence = new RiskOccurrence();
+        directOccurrence.setType("DIRECT_ADD");
+        directOccurrence.setDescription("Added directly to list");
+        directOccurrence.setCreatedAt(now.minusHours(2));
+        directOccurrence.setUpdatedAt(now.minusHours(2));
+        
+        occurrences.add(directOccurrence);
+        assertEquals(1, riskAnalysis.getOccurrences().size());
+        assertTrue(riskAnalysis.getOccurrences().contains(directOccurrence));
+        
+        // Test list clearing
+        occurrences.clear();
+        assertEquals(0, riskAnalysis.getOccurrences().size());
+    }
+
+    @Test
+    void testRiskAnalysisPreciseTimestamps() {
+        LocalDateTime preciseTime = LocalDateTime.of(2023, 12, 25, 14, 30, 45, 123456789);
+        
+        riskAnalysis.setClassification(CustomerRiskType.NO_INFORMATION);
+        riskAnalysis.setAnalyzedAt(preciseTime);
+        
+        assertEquals(preciseTime, riskAnalysis.getAnalyzedAt());
+        assertEquals(2023, riskAnalysis.getAnalyzedAt().getYear());
+        assertEquals(12, riskAnalysis.getAnalyzedAt().getMonthValue());
+        assertEquals(25, riskAnalysis.getAnalyzedAt().getDayOfMonth());
+        assertEquals(14, riskAnalysis.getAnalyzedAt().getHour());
+        assertEquals(30, riskAnalysis.getAnalyzedAt().getMinute());
+        assertEquals(45, riskAnalysis.getAnalyzedAt().getSecond());
         assertEquals(123456789, riskAnalysis.getAnalyzedAt().getNano());
+    }
+
+    @Test
+    void testRiskAnalysisWithBaseEntityFields() {
+        riskAnalysis.setClassification(CustomerRiskType.PREFERRED);
+        riskAnalysis.setAnalyzedAt(now);
+        
+        // Test BaseEntity field inheritance
+        UUID testId = UUID.randomUUID();
+        riskAnalysis.setId(testId);
+        assertEquals(testId, riskAnalysis.getId());
+        
+        String creator = "system-analyzer";
+        riskAnalysis.setCreatedBy(creator);
+        assertEquals(creator, riskAnalysis.getCreatedBy());
+        
+        String updater = "admin-user";
+        riskAnalysis.setUpdatedBy(updater);
+        assertEquals(updater, riskAnalysis.getUpdatedBy());
+        
+        LocalDateTime createdAt = now.minusHours(2);
+        riskAnalysis.setCreatedAt(createdAt);
+        assertEquals(createdAt, riskAnalysis.getCreatedAt());
+        
+        LocalDateTime updatedAt = now.minusHours(1);
+        riskAnalysis.setUpdatedAt(updatedAt);
+        assertEquals(updatedAt, riskAnalysis.getUpdatedAt());
     }
 } 

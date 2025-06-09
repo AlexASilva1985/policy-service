@@ -14,103 +14,95 @@ import java.util.List;
 import java.util.ArrayList;
 
 import com.insurance.domain.enums.PolicyStatus;
+import com.insurance.service.StatusHistoryValidationService;
+import com.insurance.service.impl.StatusHistoryValidationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Test class for StatusHistory entity after refactoring to follow Single Responsibility Principle.
+ * The entity now only handles JPA mapping, while business logic is tested through StatusHistoryValidationService.
+ */
 class StatusHistoryTest {
 
     private StatusHistory statusHistory;
+    private StatusHistoryValidationService validationService;
     private UUID policyRequestId;
     private PolicyRequest policyRequest;
+    private LocalDateTime now;
 
     @BeforeEach
     void setUp() {
+        validationService = new StatusHistoryValidationServiceImpl();
         policyRequestId = UUID.randomUUID();
         statusHistory = new StatusHistory();
-        statusHistory.setPolicyRequestId(policyRequestId);
-        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
-        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
-        statusHistory.setChangedAt(LocalDateTime.now());
         policyRequest = new PolicyRequest();
         policyRequest.setId(UUID.randomUUID());
+        now = LocalDateTime.now();
     }
+
+    // ========== ENTITY MAPPING TESTS ==========
 
     @Test
     void testCreateStatusHistoryWithCorrectData() {
+        statusHistory.setPolicyRequestId(policyRequestId);
+        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
+        statusHistory.setChangedAt(now);
+
         assertNotNull(statusHistory);
         assertEquals(policyRequestId, statusHistory.getPolicyRequestId());
         assertEquals(PolicyStatus.RECEIVED, statusHistory.getPreviousStatus());
         assertEquals(PolicyStatus.VALIDATED, statusHistory.getNewStatus());
-        assertNotNull(statusHistory.getChangedAt());
+        assertEquals(now, statusHistory.getChangedAt());
     }
 
     @Test
-    void testValidateRequiredFields() {
-        StatusHistory invalidHistory = new StatusHistory();
+    void testEntitySettersAndGetters() {
+        StatusHistory testHistory = new StatusHistory();
         
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidHistory.validate();
-        });
-        assertTrue(exception.getMessage().contains("required"));
-
-        invalidHistory.setPolicyRequestId(policyRequestId);
-        invalidHistory.setNewStatus(PolicyStatus.VALIDATED);
+        // Test all setters and getters work without business validation
+        testHistory.setPolicyRequestId(null); // Null values - no validation in entity
+        assertNull(testHistory.getPolicyRequestId());
         
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidHistory.validate();
-        });
-        assertTrue(exception.getMessage().contains("previousStatus"));
+        testHistory.setPreviousStatus(PolicyStatus.REJECTED);
+        assertEquals(PolicyStatus.REJECTED, testHistory.getPreviousStatus());
+        
+        testHistory.setNewStatus(PolicyStatus.REJECTED); // Same status - no validation in entity
+        assertEquals(PolicyStatus.REJECTED, testHistory.getNewStatus());
+        
+        LocalDateTime futureTime = LocalDateTime.now().plusDays(1);
+        testHistory.setChangedAt(futureTime);
+        assertEquals(futureTime, testHistory.getChangedAt());
+        
+        testHistory.setReason("Test reason");
+        assertEquals("Test reason", testHistory.getReason());
     }
 
     @Test
-    void testNotAllowSameStatusValues() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            statusHistory.setNewStatus(statusHistory.getPreviousStatus());
-        });
-    }
-
-    @Test
-    void testValidateStatusTransitions() {
-
-        assertDoesNotThrow(() -> {
-            statusHistory.setPreviousStatus(PolicyStatus.VALIDATED);
-            statusHistory.setNewStatus(PolicyStatus.PENDING);
-        });
-
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            statusHistory.setPreviousStatus(PolicyStatus.REJECTED);
-            statusHistory.setNewStatus(PolicyStatus.PENDING);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testAutomaticallySetCreatedAtOnNew() {
+    void testPrePersistHook() {
         StatusHistory newHistory = new StatusHistory();
-        newHistory.setPolicyRequestId(UUID.randomUUID());
-        newHistory.setPreviousStatus(PolicyStatus.RECEIVED);
-        newHistory.setNewStatus(PolicyStatus.VALIDATED);
+        assertNull(newHistory.getChangedAt());
         
         newHistory.onCreate();
-        
         assertNotNull(newHistory.getChangedAt());
         assertTrue(newHistory.getChangedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
         assertTrue(newHistory.getChangedAt().isAfter(LocalDateTime.now().minusSeconds(1)));
     }
 
     @Test
-    void testStatusHistoryCreationWithAllFields() {
+    void testStatusHistoryWithAllFields() {
         StatusHistory history = new StatusHistory();
         history.setPolicyRequestId(policyRequest.getId());
         history.setPreviousStatus(PolicyStatus.RECEIVED);
         history.setNewStatus(PolicyStatus.VALIDATED);
-        history.setChangedAt(LocalDateTime.now());
+        history.setChangedAt(now);
         history.setReason("Validation completed successfully");
 
         assertEquals(policyRequest.getId(), history.getPolicyRequestId());
         assertEquals(PolicyStatus.RECEIVED, history.getPreviousStatus());
         assertEquals(PolicyStatus.VALIDATED, history.getNewStatus());
-        assertNotNull(history.getChangedAt());
+        assertEquals(now, history.getChangedAt());
         assertEquals("Validation completed successfully", history.getReason());
     }
 
@@ -120,7 +112,7 @@ class StatusHistoryTest {
         history.setPolicyRequestId(policyRequest.getId());
         history.setPreviousStatus(PolicyStatus.VALIDATED);
         history.setNewStatus(PolicyStatus.PENDING);
-        history.setChangedAt(LocalDateTime.now());
+        history.setChangedAt(now);
         history.setReason(null);
 
         assertNull(history.getReason());
@@ -132,51 +124,110 @@ class StatusHistoryTest {
         history.setPolicyRequestId(policyRequest.getId());
         history.setPreviousStatus(PolicyStatus.PENDING);
         history.setNewStatus(PolicyStatus.APPROVED);
-        history.setChangedAt(LocalDateTime.now());
+        history.setChangedAt(now);
         history.setReason("");
 
         assertEquals("", history.getReason());
     }
 
-    @Test
-    void testStatusHistoryWithLongReason() {
-        StatusHistory history = new StatusHistory();
-        history.setPolicyRequestId(policyRequest.getId());
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        history.setNewStatus(PolicyStatus.REJECTED);
-        history.setChangedAt(LocalDateTime.now());
-        
-        String longReason = "This is a very long reason that explains in detail why the status was changed. " +
-                           "It includes multiple sentences and provides comprehensive information about the decision process.";
-        history.setReason(longReason);
+    // ========== BUSINESS LOGIC TESTS (Via StatusHistoryValidationService) ==========
 
-        assertEquals(longReason, history.getReason());
+    @Test
+    void testValidationViaService() {
+        // Valid status history
+        statusHistory.setPolicyRequestId(policyRequestId);
+        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
+        statusHistory.setChangedAt(now);
+
+        assertDoesNotThrow(() -> validationService.validateStatusHistory(statusHistory));
+        
+        // Invalid status history - missing required fields
+        StatusHistory invalidHistory = new StatusHistory();
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateStatusHistory(invalidHistory));
     }
 
     @Test
-    void testAllStatusTransitions() {
-        LocalDateTime changeTime = LocalDateTime.now();
+    void testStatusTransitionValidationViaService() {
+        // Valid transitions
+        assertDoesNotThrow(() -> 
+            validationService.validateStatusTransition(PolicyStatus.RECEIVED, PolicyStatus.VALIDATED));
+        assertDoesNotThrow(() -> 
+            validationService.validateStatusTransition(PolicyStatus.VALIDATED, PolicyStatus.PENDING));
+        assertDoesNotThrow(() -> 
+            validationService.validateStatusTransition(PolicyStatus.PENDING, PolicyStatus.APPROVED));
 
-        StatusHistory history1 = new StatusHistory();
-        history1.setPolicyRequestId(policyRequest.getId());
-        history1.setPreviousStatus(PolicyStatus.RECEIVED);
-        history1.setNewStatus(PolicyStatus.VALIDATED);
-        history1.setChangedAt(changeTime);
-        history1.setReason("Document validation completed");
+        // Invalid transitions
+        assertThrows(IllegalStateException.class, () -> 
+            validationService.validateStatusTransition(PolicyStatus.REJECTED, PolicyStatus.PENDING));
+        assertThrows(IllegalStateException.class, () -> 
+            validationService.validateStatusTransition(PolicyStatus.APPROVED, PolicyStatus.VALIDATED));
+    }
 
-        StatusHistory history2 = new StatusHistory();
-        history2.setPolicyRequestId(policyRequest.getId());
-        history2.setPreviousStatus(PolicyStatus.VALIDATED);
-        history2.setNewStatus(PolicyStatus.PENDING);
-        history2.setChangedAt(changeTime.plusMinutes(10));
-        history2.setReason("Moved to pending for further review");
+    @Test
+    void testStatusDifferenceValidationViaService() {
+        // Valid - different statuses
+        assertDoesNotThrow(() -> 
+            validationService.validateStatusDifference(PolicyStatus.RECEIVED, PolicyStatus.VALIDATED));
+        
+        // Invalid - same status
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateStatusDifference(PolicyStatus.RECEIVED, PolicyStatus.RECEIVED));
+    }
 
-        StatusHistory history3 = new StatusHistory();
-        history3.setPolicyRequestId(policyRequest.getId());
-        history3.setPreviousStatus(PolicyStatus.PENDING);
-        history3.setNewStatus(PolicyStatus.APPROVED);
-        history3.setChangedAt(changeTime.plusMinutes(20));
-        history3.setReason("All requirements met, approved");
+    @Test
+    void testCreateStatusHistoryViaService() {
+        StatusHistory createdHistory = validationService.createStatusHistory(
+                policyRequestId, PolicyStatus.RECEIVED, PolicyStatus.VALIDATED, "Test reason");
+
+        assertEquals(policyRequestId, createdHistory.getPolicyRequestId());
+        assertEquals(PolicyStatus.RECEIVED, createdHistory.getPreviousStatus());
+        assertEquals(PolicyStatus.VALIDATED, createdHistory.getNewStatus());
+        assertEquals("Test reason", createdHistory.getReason());
+        assertNotNull(createdHistory.getChangedAt());
+    }
+
+    @Test
+    void testFieldValidationsViaService() {
+        // Policy request ID validation
+        assertDoesNotThrow(() -> validationService.validatePolicyRequestId(policyRequestId));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validatePolicyRequestId(null));
+
+        // Status validations
+        assertDoesNotThrow(() -> validationService.validatePreviousStatus(PolicyStatus.RECEIVED));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validatePreviousStatus(null));
+
+        assertDoesNotThrow(() -> validationService.validateNewStatus(PolicyStatus.VALIDATED));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateNewStatus(null));
+
+        // Timestamp validation
+        assertDoesNotThrow(() -> validationService.validateChangedAt(now));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateChangedAt(null));
+    }
+
+    // ========== INTEGRATION TESTS ==========
+
+    @Test
+    void testCompleteWorkflowWithService() {
+        // Create and validate a complete status history workflow
+        StatusHistory history1 = validationService.createStatusHistory(
+                policyRequestId, PolicyStatus.RECEIVED, PolicyStatus.VALIDATED, "Document validation completed");
+
+        StatusHistory history2 = validationService.createStatusHistory(
+                policyRequestId, PolicyStatus.VALIDATED, PolicyStatus.PENDING, "Moved to pending for review");
+
+        StatusHistory history3 = validationService.createStatusHistory(
+                policyRequestId, PolicyStatus.PENDING, PolicyStatus.APPROVED, "All requirements met");
+
+        // Validate all histories
+        assertDoesNotThrow(() -> validationService.validateStatusHistory(history1));
+        assertDoesNotThrow(() -> validationService.validateStatusHistory(history2));
+        assertDoesNotThrow(() -> validationService.validateStatusHistory(history3));
 
         assertEquals(PolicyStatus.VALIDATED, history1.getNewStatus());
         assertEquals(PolicyStatus.PENDING, history2.getNewStatus());
@@ -184,371 +235,364 @@ class StatusHistoryTest {
     }
 
     @Test
-    void testRejectionTransitions() {
-        LocalDateTime changeTime = LocalDateTime.now();
-
-        StatusHistory rejectionFromReceived = new StatusHistory();
-        rejectionFromReceived.setPolicyRequestId(policyRequest.getId());
-        rejectionFromReceived.setPreviousStatus(PolicyStatus.RECEIVED);
-        rejectionFromReceived.setNewStatus(PolicyStatus.REJECTED);
-        rejectionFromReceived.setChangedAt(changeTime);
-        rejectionFromReceived.setReason("Invalid documentation provided");
-
-        StatusHistory rejectionFromValidated = new StatusHistory();
-        rejectionFromValidated.setPolicyRequestId(policyRequest.getId());
-        rejectionFromValidated.setPreviousStatus(PolicyStatus.VALIDATED);
-        rejectionFromValidated.setNewStatus(PolicyStatus.REJECTED);
-        rejectionFromValidated.setChangedAt(changeTime.plusMinutes(15));
-        rejectionFromValidated.setReason("Risk assessment failed");
-
-        StatusHistory rejectionFromPending = new StatusHistory();
-        rejectionFromPending.setPolicyRequestId(policyRequest.getId());
-        rejectionFromPending.setPreviousStatus(PolicyStatus.PENDING);
-        rejectionFromPending.setNewStatus(PolicyStatus.REJECTED);
-        rejectionFromPending.setChangedAt(changeTime.plusMinutes(30));
-        rejectionFromPending.setReason("Credit check failed");
-
-        assertEquals(PolicyStatus.REJECTED, rejectionFromReceived.getNewStatus());
-        assertEquals(PolicyStatus.REJECTED, rejectionFromValidated.getNewStatus());
-        assertEquals(PolicyStatus.REJECTED, rejectionFromPending.getNewStatus());
+    void testEntityInheritanceFromBaseEntity() {
+        // Test inheritance structure
+        assertTrue(statusHistory instanceof BaseEntity);
+        
+        // Test that we can set/get BaseEntity fields
+        UUID testId = UUID.randomUUID();
+        statusHistory.setId(testId);
+        assertEquals(testId, statusHistory.getId());
+        
+        String testUser = "test-user";
+        statusHistory.setCreatedBy(testUser);
+        assertEquals(testUser, statusHistory.getCreatedBy());
+        
+        statusHistory.setUpdatedBy(testUser);
+        assertEquals(testUser, statusHistory.getUpdatedBy());
     }
 
     @Test
-    void testCancellationTransitions() {
-        LocalDateTime changeTime = LocalDateTime.now();
-
-        StatusHistory cancellationFromReceived = new StatusHistory();
-        cancellationFromReceived.setPolicyRequestId(policyRequest.getId());
-        cancellationFromReceived.setPreviousStatus(PolicyStatus.RECEIVED);
-        cancellationFromReceived.setNewStatus(PolicyStatus.CANCELLED);
-        cancellationFromReceived.setChangedAt(changeTime);
-        cancellationFromReceived.setReason("Customer requested cancellation");
-
-        StatusHistory cancellationFromValidated = new StatusHistory();
-        cancellationFromValidated.setPolicyRequestId(policyRequest.getId());
-        cancellationFromValidated.setPreviousStatus(PolicyStatus.VALIDATED);
-        cancellationFromValidated.setNewStatus(PolicyStatus.CANCELLED);
-        cancellationFromValidated.setChangedAt(changeTime.plusMinutes(10));
-        cancellationFromValidated.setReason("System error, cancelled by admin");
-
-        assertEquals(PolicyStatus.CANCELLED, cancellationFromReceived.getNewStatus());
-        assertEquals(PolicyStatus.CANCELLED, cancellationFromValidated.getNewStatus());
+    void testAllPolicyStatusTypes() {
+        for (PolicyStatus status : PolicyStatus.values()) {
+            StatusHistory testHistory = new StatusHistory();
+            testHistory.setPreviousStatus(status);
+            testHistory.setNewStatus(status); // Entity allows same status
+            
+            assertEquals(status, testHistory.getPreviousStatus());
+            assertEquals(status, testHistory.getNewStatus());
+        }
     }
 
     @Test
-    void testStatusHistoryWithDifferentPolicyRequests() {
-        PolicyRequest anotherPolicyRequest = new PolicyRequest();
-        anotherPolicyRequest.setId(UUID.randomUUID());
+    void testUpdateStatusHistoryViaService() {
+        statusHistory.setPolicyRequestId(policyRequestId);
+        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
+        statusHistory.setChangedAt(now);
 
-        StatusHistory history1 = new StatusHistory();
-        history1.setPolicyRequestId(policyRequest.getId());
-        history1.setPreviousStatus(PolicyStatus.RECEIVED);
-        history1.setNewStatus(PolicyStatus.VALIDATED);
-        history1.setChangedAt(LocalDateTime.now());
+        // Update via service with validation
+        assertDoesNotThrow(() -> validationService.updateStatusHistory(
+                statusHistory, null, PolicyStatus.VALIDATED, PolicyStatus.PENDING, null, "Updated reason"));
 
-        StatusHistory history2 = new StatusHistory();
-        history2.setPolicyRequestId(anotherPolicyRequest.getId());
-        history2.setPreviousStatus(PolicyStatus.RECEIVED);
-        history2.setNewStatus(PolicyStatus.VALIDATED);
-        history2.setChangedAt(LocalDateTime.now());
-
-        assertNotEquals(history1.getPolicyRequestId(), history2.getPolicyRequestId());
-        assertEquals(history1.getPreviousStatus(), history2.getPreviousStatus());
-        assertEquals(history1.getNewStatus(), history2.getNewStatus());
+        assertEquals(PolicyStatus.VALIDATED, statusHistory.getPreviousStatus());
+        assertEquals(PolicyStatus.PENDING, statusHistory.getNewStatus());
+        assertEquals("Updated reason", statusHistory.getReason());
     }
 
     @Test
-    void testStatusHistoryTimeOrder() {
-        LocalDateTime baseTime = LocalDateTime.now();
-
-        StatusHistory firstChange = new StatusHistory();
-        firstChange.setChangedAt(baseTime);
-        firstChange.setPreviousStatus(PolicyStatus.RECEIVED);
-        firstChange.setNewStatus(PolicyStatus.VALIDATED);
-
-        StatusHistory secondChange = new StatusHistory();
-        secondChange.setChangedAt(baseTime.plusMinutes(5));
-        secondChange.setPreviousStatus(PolicyStatus.VALIDATED);
-        secondChange.setNewStatus(PolicyStatus.PENDING);
-
-        StatusHistory thirdChange = new StatusHistory();
-        thirdChange.setChangedAt(baseTime.plusMinutes(10));
-        thirdChange.setPreviousStatus(PolicyStatus.PENDING);
-        thirdChange.setNewStatus(PolicyStatus.APPROVED);
-
-        assertTrue(firstChange.getChangedAt().isBefore(secondChange.getChangedAt()));
-        assertTrue(secondChange.getChangedAt().isBefore(thirdChange.getChangedAt()));
+    void testStatusHistoryWithVariousReasonLengths() {
+        StatusHistory reasonHistory = new StatusHistory();
+        reasonHistory.setPolicyRequestId(policyRequestId);
+        reasonHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        reasonHistory.setNewStatus(PolicyStatus.VALIDATED);
+        reasonHistory.setChangedAt(now);
+        
+        // Short reason
+        reasonHistory.setReason("OK");
+        assertEquals("OK", reasonHistory.getReason());
+        
+        // Medium reason
+        String mediumReason = "Document validation completed successfully";
+        reasonHistory.setReason(mediumReason);
+        assertEquals(mediumReason, reasonHistory.getReason());
+        
+        // Long reason
+        String longReason = "This is a very detailed reason that explains in great detail why the status was changed. " +
+                           "It includes multiple aspects of the decision process, references to documentation, " +
+                           "compliance requirements, and additional notes from the review process. " +
+                           "The reason also contains technical details and references to external systems.";
+        reasonHistory.setReason(longReason);
+        assertEquals(longReason, reasonHistory.getReason());
+        assertTrue(reasonHistory.getReason().length() > 200);
     }
 
     @Test
     void testStatusHistoryWithSpecialCharactersInReason() {
-        StatusHistory history = new StatusHistory();
-        history.setPolicyRequestId(policyRequest.getId());
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        history.setNewStatus(PolicyStatus.VALIDATED);
-        history.setChangedAt(LocalDateTime.now());
+        StatusHistory specialHistory = new StatusHistory();
+        specialHistory.setPolicyRequestId(policyRequestId);
+        specialHistory.setPreviousStatus(PolicyStatus.PENDING);
+        specialHistory.setNewStatus(PolicyStatus.APPROVED);
+        specialHistory.setChangedAt(now);
         
-        String specialReason = "Razão com acentos e çaracteres especiais: !@#$%^&*()";
-        history.setReason(specialReason);
-
-        assertEquals(specialReason, history.getReason());
+        String specialReason = "Approved with conditions: !@#$%^&*()[]{}|;':\",./<>?~`";
+        specialHistory.setReason(specialReason);
+        assertEquals(specialReason, specialHistory.getReason());
     }
 
     @Test
-    void testStatusHistoryEquality() {
-        StatusHistory history1 = createStatusHistory();
-        StatusHistory history2 = createStatusHistory();
-
-        StatusHistory differentHistory = new StatusHistory();
-        differentHistory.setPolicyRequestId(policyRequest.getId());
-        differentHistory.setPreviousStatus(PolicyStatus.VALIDATED);
-        differentHistory.setNewStatus(PolicyStatus.PENDING);
-        differentHistory.setChangedAt(LocalDateTime.now());
-        differentHistory.setReason("Different reason");
-
-        assertNotEquals(history1, differentHistory);
+    void testStatusHistoryWithUTF8CharactersInReason() {
+        StatusHistory utf8History = new StatusHistory();
+        utf8History.setPolicyRequestId(policyRequestId);
+        utf8History.setPreviousStatus(PolicyStatus.VALIDATED);
+        utf8History.setNewStatus(PolicyStatus.REJECTED);
+        utf8History.setChangedAt(now);
         
+        String utf8Reason = "Rechazado: documentación inválida. Причина: недостаточно данных. 理由：文档不完整";
+        utf8History.setReason(utf8Reason);
+        assertEquals(utf8Reason, utf8History.getReason());
+    }
+
+    @Test
+    void testStatusHistoryPreciseTimestamps() {
+        StatusHistory preciseHistory = new StatusHistory();
+        preciseHistory.setPolicyRequestId(policyRequestId);
+        preciseHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        preciseHistory.setNewStatus(PolicyStatus.VALIDATED);
+        
+        LocalDateTime preciseTime = LocalDateTime.of(2023, 12, 25, 14, 30, 45, 123456789);
+        preciseHistory.setChangedAt(preciseTime);
+        
+        assertEquals(preciseTime, preciseHistory.getChangedAt());
+        assertEquals(2023, preciseHistory.getChangedAt().getYear());
+        assertEquals(12, preciseHistory.getChangedAt().getMonthValue());
+        assertEquals(25, preciseHistory.getChangedAt().getDayOfMonth());
+        assertEquals(14, preciseHistory.getChangedAt().getHour());
+        assertEquals(30, preciseHistory.getChangedAt().getMinute());
+        assertEquals(45, preciseHistory.getChangedAt().getSecond());
+        assertEquals(123456789, preciseHistory.getChangedAt().getNano());
+    }
+
+    @Test
+    void testStatusHistoryWorkflowSequence() {
+        PolicyStatus[] workflowSequence = {
+            PolicyStatus.RECEIVED,
+            PolicyStatus.VALIDATED,
+            PolicyStatus.PENDING,
+            PolicyStatus.APPROVED
+        };
+        
+        for (int i = 0; i < workflowSequence.length - 1; i++) {
+            StatusHistory workflowHistory = validationService.createStatusHistory(
+                policyRequestId, 
+                workflowSequence[i], 
+                workflowSequence[i + 1], 
+                "Workflow step " + (i + 1)
+            );
+            
+            assertEquals(policyRequestId, workflowHistory.getPolicyRequestId());
+            assertEquals(workflowSequence[i], workflowHistory.getPreviousStatus());
+            assertEquals(workflowSequence[i + 1], workflowHistory.getNewStatus());
+            assertEquals("Workflow step " + (i + 1), workflowHistory.getReason());
+            assertNotNull(workflowHistory.getChangedAt());
+        }
+    }
+
+    @Test
+    void testStatusHistoryRejectionWorkflows() {
+        PolicyStatus[] rejectionPoints = {PolicyStatus.RECEIVED, PolicyStatus.VALIDATED, PolicyStatus.PENDING};
+        
+        for (PolicyStatus fromStatus : rejectionPoints) {
+            StatusHistory rejectionHistory = validationService.createStatusHistory(
+                policyRequestId,
+                fromStatus,
+                PolicyStatus.REJECTED,
+                "Rejected from " + fromStatus.name()
+            );
+            
+            assertEquals(fromStatus, rejectionHistory.getPreviousStatus());
+            assertEquals(PolicyStatus.REJECTED, rejectionHistory.getNewStatus());
+            assertTrue(rejectionHistory.getReason().contains("Rejected"));
+        }
+    }
+
+    @Test
+    void testStatusHistoryCancellationWorkflows() {
+        PolicyStatus[] cancellationPoints = {PolicyStatus.RECEIVED, PolicyStatus.VALIDATED, PolicyStatus.PENDING};
+        
+        for (PolicyStatus fromStatus : cancellationPoints) {
+            StatusHistory cancellationHistory = validationService.createStatusHistory(
+                policyRequestId,
+                fromStatus,
+                PolicyStatus.CANCELLED,
+                "Cancelled from " + fromStatus.name()
+            );
+            
+            assertEquals(fromStatus, cancellationHistory.getPreviousStatus());
+            assertEquals(PolicyStatus.CANCELLED, cancellationHistory.getNewStatus());
+            assertTrue(cancellationHistory.getReason().contains("Cancelled"));
+        }
+    }
+
+    @Test
+    void testStatusHistoryEqualsAndHashCode() {
+        StatusHistory history1 = new StatusHistory();
+        history1.setId(UUID.randomUUID());
+        history1.setPolicyRequestId(policyRequestId);
+        history1.setPreviousStatus(PolicyStatus.RECEIVED);
+        history1.setNewStatus(PolicyStatus.VALIDATED);
+        history1.setChangedAt(now);
+        history1.setReason("Test");
+
+        StatusHistory history2 = new StatusHistory();
+        history2.setId(history1.getId());
+        history2.setPolicyRequestId(policyRequestId);
+        history2.setPreviousStatus(PolicyStatus.RECEIVED);
+        history2.setNewStatus(PolicyStatus.VALIDATED);
+        history2.setChangedAt(now);
+        history2.setReason("Test");
+
         assertEquals(history1, history2);
-        assertEquals(history1.getPreviousStatus(), history2.getPreviousStatus());
-        assertEquals(history1.getNewStatus(), history2.getNewStatus());
-        assertEquals(history1.getReason(), history2.getReason());
+        assertEquals(history1.hashCode(), history2.hashCode());
     }
 
     @Test
     void testStatusHistoryToString() {
-        StatusHistory history = createStatusHistory();
-        String toString = history.toString();
+        statusHistory.setPolicyRequestId(policyRequestId);
+        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
+        statusHistory.setChangedAt(now);
+        statusHistory.setReason("Test toString");
         
+        String toString = statusHistory.toString();
         assertNotNull(toString);
-        assertTrue(toString.length() > 0);
+        assertTrue(toString.contains("StatusHistory"));
+        assertTrue(toString.contains("RECEIVED"));
+        assertTrue(toString.contains("VALIDATED"));
     }
 
     @Test
-    void testStatusHistoryHashCode() {
-        StatusHistory history = createStatusHistory();
-        int hashCode = history.hashCode();
+    void testStatusHistoryBatchCreation() {
+        UUID[] policyIds = {
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            UUID.randomUUID()
+        };
         
-        assertEquals(hashCode, history.hashCode());
-    }
-
-    @Test
-    void testInheritanceFromBaseEntity() {
-        StatusHistory history = createStatusHistory();
-        assertTrue(history instanceof BaseEntity);
-        
-        history.setCreatedBy("system");
-        history.setUpdatedBy("admin");
-        
-        assertEquals("system", history.getCreatedBy());
-        assertEquals("admin", history.getUpdatedBy());
-    }
-
-    @Test
-    void testStatusHistoryWithPreciseTimestamp() {
-        LocalDateTime preciseTime = LocalDateTime.of(2023, 12, 25, 14, 30, 45, 123456789);
-        
-        StatusHistory history = new StatusHistory();
-        history.setPolicyRequestId(policyRequest.getId());
-        history.setPreviousStatus(PolicyStatus.VALIDATED);
-        history.setNewStatus(PolicyStatus.PENDING);
-        history.setChangedAt(preciseTime);
-        history.setReason("Precise timing test");
-
-        assertEquals(preciseTime, history.getChangedAt());
-        assertEquals(2023, history.getChangedAt().getYear());
-        assertEquals(12, history.getChangedAt().getMonthValue());
-        assertEquals(25, history.getChangedAt().getDayOfMonth());
-        assertEquals(14, history.getChangedAt().getHour());
-        assertEquals(30, history.getChangedAt().getMinute());
-        assertEquals(45, history.getChangedAt().getSecond());
-    }
-
-    @Test
-    void testStatusHistoryBatch() {
-
-        List<StatusHistory> histories = new ArrayList<>();
-        PolicyStatus[] statuses = {
+        for (int i = 0; i < policyIds.length; i++) {
+            StatusHistory batchHistory = validationService.createStatusHistory(
+                policyIds[i],
                 PolicyStatus.RECEIVED,
                 PolicyStatus.VALIDATED,
-                PolicyStatus.PENDING,
-                PolicyStatus.APPROVED
-        };
-
-        for (int i = 0; i < statuses.length - 1; i++) {
-            StatusHistory history = new StatusHistory();
-            history.setPolicyRequestId(policyRequest.getId());
-            history.setPreviousStatus(statuses[i]);
-            history.setNewStatus(statuses[i + 1]);
-            history.setChangedAt(LocalDateTime.now().plusMinutes(i * 5));
-            history.setReason("Batch transition " + (i + 1));
-            histories.add(history);
+                "Batch validation " + (i + 1)
+            );
+            
+            assertEquals(policyIds[i], batchHistory.getPolicyRequestId());
+            assertEquals(PolicyStatus.RECEIVED, batchHistory.getPreviousStatus());
+            assertEquals(PolicyStatus.VALIDATED, batchHistory.getNewStatus());
+            assertTrue(batchHistory.getReason().contains("Batch"));
         }
-
-        assertEquals(3, histories.size());
-        
-        assertEquals(PolicyStatus.RECEIVED, histories.get(0).getPreviousStatus());
-        assertEquals(PolicyStatus.VALIDATED, histories.get(0).getNewStatus());
-        
-        assertEquals(PolicyStatus.VALIDATED, histories.get(1).getPreviousStatus());
-        assertEquals(PolicyStatus.PENDING, histories.get(1).getNewStatus());
-        
-        assertEquals(PolicyStatus.PENDING, histories.get(2).getPreviousStatus());
-        assertEquals(PolicyStatus.APPROVED, histories.get(2).getNewStatus());
     }
 
     @Test
-    void testValidationWithMissingFields() {
-        StatusHistory emptyHistory = new StatusHistory();
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            emptyHistory.validate();
-        });
-        assertEquals("policyRequestId is required", exception.getMessage());
-
-        emptyHistory.setPolicyRequestId(UUID.randomUUID());
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            emptyHistory.validate();
-        });
-        assertEquals("previousStatus is required", exception.getMessage());
-
-        emptyHistory.setPreviousStatus(PolicyStatus.RECEIVED);
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            emptyHistory.validate();
-        });
-        assertEquals("newStatus is required", exception.getMessage());
-
-        emptyHistory.setNewStatus(PolicyStatus.VALIDATED);
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            emptyHistory.validate();
-        });
-        assertEquals("changedAt is required", exception.getMessage());
+    void testStatusHistoryWithDifferentTimestamps() {
+        LocalDateTime[] testTimes = {
+            LocalDateTime.of(2020, 1, 1, 0, 0, 0),
+            LocalDateTime.of(2023, 6, 15, 12, 30, 45),
+            LocalDateTime.of(2023, 12, 31, 23, 59, 59),
+            now.minusYears(1),
+            now.minusMonths(6),
+            now.minusDays(1),
+            now.minusHours(1),
+            now.minusMinutes(30)
+        };
+        
+        for (LocalDateTime testTime : testTimes) {
+            StatusHistory timeHistory = new StatusHistory();
+            timeHistory.setPolicyRequestId(policyRequestId);
+            timeHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+            timeHistory.setNewStatus(PolicyStatus.VALIDATED);
+            timeHistory.setChangedAt(testTime);
+            timeHistory.setReason("Time test");
+            
+            assertEquals(testTime, timeHistory.getChangedAt());
+            assertDoesNotThrow(() -> validationService.validateStatusHistory(timeHistory));
+        }
     }
 
     @Test
-    void testValidationWithAllRequiredFields() {
-        StatusHistory validHistory = new StatusHistory();
-        validHistory.setPolicyRequestId(UUID.randomUUID());
-        validHistory.setPreviousStatus(PolicyStatus.RECEIVED);
-        validHistory.setNewStatus(PolicyStatus.VALIDATED);
-        validHistory.setChangedAt(LocalDateTime.now());
-
-        assertDoesNotThrow(() -> validHistory.validate());
+    void testStatusHistoryValidationEdgeCases() {
+        // Test null policy request ID
+        StatusHistory nullPolicyId = new StatusHistory();
+        nullPolicyId.setPreviousStatus(PolicyStatus.RECEIVED);
+        nullPolicyId.setNewStatus(PolicyStatus.VALIDATED);
+        nullPolicyId.setChangedAt(now);
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateStatusHistory(nullPolicyId));
+        
+        // Test null previous status
+        StatusHistory nullPrevious = new StatusHistory();
+        nullPrevious.setPolicyRequestId(policyRequestId);
+        nullPrevious.setNewStatus(PolicyStatus.VALIDATED);
+        nullPrevious.setChangedAt(now);
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateStatusHistory(nullPrevious));
+        
+        // Test null new status
+        StatusHistory nullNew = new StatusHistory();
+        nullNew.setPolicyRequestId(policyRequestId);
+        nullNew.setPreviousStatus(PolicyStatus.RECEIVED);
+        nullNew.setChangedAt(now);
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateStatusHistory(nullNew));
+        
+        // Test null changed at
+        StatusHistory nullChanged = new StatusHistory();
+        nullChanged.setPolicyRequestId(policyRequestId);
+        nullChanged.setPreviousStatus(PolicyStatus.RECEIVED);
+        nullChanged.setNewStatus(PolicyStatus.VALIDATED);
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateStatusHistory(nullChanged));
     }
 
     @Test
-    void testSetPolicyRequestIdValidation() {
-        StatusHistory history = new StatusHistory();
+    void testStatusHistoryComplexUpdateScenarios() {
+        statusHistory.setPolicyRequestId(policyRequestId);
+        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
+        statusHistory.setChangedAt(now);
+        statusHistory.setReason("Initial");
         
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            history.setPolicyRequestId(null);
-        });
-        assertEquals("policyRequestId cannot be null", exception.getMessage());
-
-        UUID validId = UUID.randomUUID();
-        history.setPolicyRequestId(validId);
-        assertEquals(validId, history.getPolicyRequestId());
+        // Update policy ID
+        UUID newPolicyId = UUID.randomUUID();
+        assertDoesNotThrow(() -> validationService.updateStatusHistory(
+            statusHistory, newPolicyId, null, null, null, null));
+        assertEquals(newPolicyId, statusHistory.getPolicyRequestId());
+        
+        // Update timestamps
+        LocalDateTime newTime = now.plusHours(1);
+        assertDoesNotThrow(() -> validationService.updateStatusHistory(
+            statusHistory, null, null, null, newTime, null));
+        assertEquals(newTime, statusHistory.getChangedAt());
+        
+        // Update reason
+        assertDoesNotThrow(() -> validationService.updateStatusHistory(
+            statusHistory, null, null, null, null, "Updated reason"));
+        assertEquals("Updated reason", statusHistory.getReason());
+        
+        // Update status transition
+        assertDoesNotThrow(() -> validationService.updateStatusHistory(
+            statusHistory, null, PolicyStatus.VALIDATED, PolicyStatus.PENDING, null, null));
+        assertEquals(PolicyStatus.VALIDATED, statusHistory.getPreviousStatus());
+        assertEquals(PolicyStatus.PENDING, statusHistory.getNewStatus());
     }
 
     @Test
-    void testSetPreviousStatusValidation() {
-        StatusHistory history = new StatusHistory();
+    void testStatusHistoryWithBaseEntityFields() {
+        statusHistory.setPolicyRequestId(policyRequestId);
+        statusHistory.setPreviousStatus(PolicyStatus.RECEIVED);
+        statusHistory.setNewStatus(PolicyStatus.VALIDATED);
+        statusHistory.setChangedAt(now);
         
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            history.setPreviousStatus(null);
-        });
-        assertEquals("previousStatus cannot be null", exception.getMessage());
-
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        assertEquals(PolicyStatus.RECEIVED, history.getPreviousStatus());
-    }
-
-    @Test
-    void testSetNewStatusValidation() {
-        StatusHistory history = new StatusHistory();
+        // Test BaseEntity field inheritance
+        UUID testId = UUID.randomUUID();
+        statusHistory.setId(testId);
+        assertEquals(testId, statusHistory.getId());
         
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            history.setNewStatus(null);
-        });
-        assertEquals("newStatus cannot be null", exception.getMessage());
-
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            history.setNewStatus(PolicyStatus.RECEIVED);
-        });
-        assertEquals("newStatus cannot be the same as previousStatus", exception.getMessage());
-    }
-
-    @Test
-    void testInvalidStatusTransitions() {
-        StatusHistory history = new StatusHistory();
+        String creator = "status-service";
+        statusHistory.setCreatedBy(creator);
+        assertEquals(creator, statusHistory.getCreatedBy());
         
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            history.setNewStatus(PolicyStatus.PENDING);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-
-        history.setPreviousStatus(PolicyStatus.APPROVED);
-        exception = assertThrows(IllegalStateException.class, () -> {
-            history.setNewStatus(PolicyStatus.PENDING);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-
-        history.setPreviousStatus(PolicyStatus.REJECTED);
-        exception = assertThrows(IllegalStateException.class, () -> {
-            history.setNewStatus(PolicyStatus.VALIDATED);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-
-        history.setPreviousStatus(PolicyStatus.CANCELLED);
-        exception = assertThrows(IllegalStateException.class, () -> {
-            history.setNewStatus(PolicyStatus.VALIDATED);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testValidStatusTransitions() {
-        StatusHistory history = new StatusHistory();
+        String updater = "admin-user";
+        statusHistory.setUpdatedBy(updater);
+        assertEquals(updater, statusHistory.getUpdatedBy());
         
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
+        LocalDateTime createdAt = now.minusHours(2);
+        statusHistory.setCreatedAt(createdAt);
+        assertEquals(createdAt, statusHistory.getCreatedAt());
         
-        history.setNewStatus(PolicyStatus.VALIDATED);
-        assertEquals(PolicyStatus.VALIDATED, history.getNewStatus());
-        
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        history.setNewStatus(PolicyStatus.REJECTED);
-        assertEquals(PolicyStatus.REJECTED, history.getNewStatus());
-        
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        history.setNewStatus(PolicyStatus.CANCELLED);
-        assertEquals(PolicyStatus.CANCELLED, history.getNewStatus());
-    }
-
-    @Test
-    void testOnCreateSetsDefaultChangedAt() {
-        StatusHistory newHistory = new StatusHistory();
-        newHistory.onCreate();
-        assertNotNull(newHistory.getChangedAt());
-        assertTrue(newHistory.getChangedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
-    }
-
-    @Test
-    void testOnCreateDoesNotOverrideExistingChangedAt() {
-        StatusHistory newHistory = new StatusHistory();
-        LocalDateTime specificTime = LocalDateTime.of(2023, 1, 1, 12, 0, 0);
-        newHistory.setChangedAt(specificTime);
-        newHistory.onCreate();
-        assertEquals(specificTime, newHistory.getChangedAt());
-    }
-
-    private StatusHistory createStatusHistory() {
-        StatusHistory history = new StatusHistory();
-        history.setPolicyRequestId(policyRequest.getId());
-        history.setPreviousStatus(PolicyStatus.RECEIVED);
-        history.setNewStatus(PolicyStatus.VALIDATED);
-        history.setChangedAt(LocalDateTime.now());
-        history.setReason("Test reason");
-        return history;
+        LocalDateTime updatedAt = now.minusHours(1);
+        statusHistory.setUpdatedAt(updatedAt);
+        assertEquals(updatedAt, statusHistory.getUpdatedAt());
     }
 } 

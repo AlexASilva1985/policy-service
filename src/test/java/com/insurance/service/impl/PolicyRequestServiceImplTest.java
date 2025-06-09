@@ -9,12 +9,14 @@ import com.insurance.dto.PolicyCancelResponseDTO;
 import com.insurance.dto.PolicyValidationResponseDTO;
 import com.insurance.event.PolicyRequestCreatedEvent;
 import com.insurance.event.PolicyRequestEvent;
+import com.insurance.exception.BusinessException;
 import com.insurance.infrastructure.messaging.config.RabbitMQConfig;
 import com.insurance.infrastructure.messaging.service.EventPublisher;
 import com.insurance.repository.PolicyRequestRepository;
 import com.insurance.service.FraudAnalysisService;
 import com.insurance.service.PaymentService;
 import com.insurance.service.SubscriptionService;
+import com.insurance.service.PolicyStatusService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,9 @@ class PolicyRequestServiceImplTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private PolicyStatusService policyStatusService;
+
     @Spy
     @InjectMocks
     private PolicyRequestServiceImpl policyRequestService;
@@ -81,6 +86,20 @@ class PolicyRequestServiceImplTest {
         policyRequest.setUpdatedBy("system");
         policyRequest.setTotalMonthlyPremiumAmount(BigDecimal.valueOf(150.00));
         policyRequest.setInsuredAmount(BigDecimal.valueOf(50000.00));
+        
+        // Add coverages to make the policy request valid
+        policyRequest.getCoverages().put("Collision", new BigDecimal("30000.00"));
+        policyRequest.getCoverages().put("Theft", new BigDecimal("20000.00"));
+        
+        // Set up lenient default behavior for PolicyStatusService
+        lenient().when(policyStatusService.canTransitionTo(any(PolicyStatus.class), any(PolicyStatus.class)))
+                .thenReturn(true);
+        lenient().doAnswer(invocation -> {
+            PolicyRequest request = invocation.getArgument(0);
+            PolicyStatus newStatus = invocation.getArgument(1);
+            request.setStatus(newStatus);
+            return null;
+        }).when(policyStatusService).updatePolicyStatus(any(PolicyRequest.class), any(PolicyStatus.class));
     }
 
     @Test
@@ -150,6 +169,10 @@ class PolicyRequestServiceImplTest {
     void testUpdateStatusInvalidTransition() {
         policyRequest.setStatus(PolicyStatus.APPROVED);
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
+        
+        // Mock PolicyStatusService to throw IllegalStateException for invalid transition
+        doThrow(new IllegalStateException("Cannot transition from APPROVED to VALIDATED"))
+                .when(policyStatusService).updatePolicyStatus(any(PolicyRequest.class), eq(PolicyStatus.VALIDATED));
 
         assertThrows(IllegalStateException.class, () ->
             policyRequestService.updateStatus(requestId, PolicyStatus.VALIDATED)
@@ -203,15 +226,13 @@ class PolicyRequestServiceImplTest {
 
     @Test
     void testProcessPaymentSuccess() {
-
         policyRequest.setStatus(PolicyStatus.VALIDATED);
         policyRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
 
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenAnswer(invocation -> {
             PolicyRequest savedRequest = invocation.getArgument(0);
-            policyRequest.setStatus(savedRequest.getStatus());
-            return policyRequest;
+            return savedRequest;
         });
         when(paymentService.processPayment(policyRequest)).thenReturn(true);
 
@@ -234,37 +255,31 @@ class PolicyRequestServiceImplTest {
 
     @Test
     void testProcessPaymentFailure() {
-
         policyRequest.setStatus(PolicyStatus.VALIDATED);
         policyRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
 
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenAnswer(invocation -> {
             PolicyRequest savedRequest = invocation.getArgument(0);
-            policyRequest.setStatus(savedRequest.getStatus());
-            return policyRequest;
+            return savedRequest;
         });
         when(paymentService.processPayment(policyRequest)).thenReturn(false);
 
-        policyRequestService.processPayment(requestId);
-
-        verify(paymentService).processPayment(policyRequest);
-        verify(repository).save(any(PolicyRequest.class));
-        verify(eventPublisher).publish(
-            eq(RabbitMQConfig.POLICY_EVENTS_EXCHANGE),
-            eq(RabbitMQConfig.PAYMENT_REJECTED_KEY),
-            eventCaptor.capture()
+        // The service throws BusinessException when payment fails
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            policyRequestService.processPayment(requestId)
         );
 
-        PolicyRequestEvent event = eventCaptor.getValue();
-        assertEquals(requestId, event.getPolicyRequestId());
-        assertEquals(customerId, event.getCustomerId());
-        assertEquals(PolicyStatus.REJECTED, event.getStatus());
+        assertEquals("Payment processing failed", exception.getMessage());
+        assertEquals("PAYMENT_FAILED", exception.getErrorCode());
+        verify(paymentService).processPayment(policyRequest);
+        verify(repository).save(any(PolicyRequest.class));
         assertEquals(PolicyStatus.REJECTED, policyRequest.getStatus());
     }
 
     @Test
     void testProcessSubscriptionSuccess() {
+        policyRequest.setStatus(PolicyStatus.PENDING);  // Subscription requires PENDING status
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
 
@@ -276,15 +291,22 @@ class PolicyRequestServiceImplTest {
 
     @Test
     void testProcessSubscriptionFailure() {
+        policyRequest.setStatus(PolicyStatus.PENDING);  // Subscription requires PENDING status
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
         doThrow(new RuntimeException("Subscription failed"))
             .when(subscriptionService).processSubscription(policyRequest);
 
-        policyRequestService.processSubscription(requestId);
+        // The service throws BusinessException when subscription fails  
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            policyRequestService.processSubscription(requestId)
+        );
 
+        assertEquals("Error during subscription processing", exception.getMessage());
+        assertEquals("SUBSCRIPTION_ERROR", exception.getErrorCode());
         verify(subscriptionService).processSubscription(policyRequest);
         verify(repository).save(any(PolicyRequest.class));
+        assertEquals(PolicyStatus.REJECTED, policyRequest.getStatus());
     }
 
     @Test
@@ -311,24 +333,29 @@ class PolicyRequestServiceImplTest {
         policyRequest.setStatus(PolicyStatus.APPROVED);
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
 
-        PolicyCancelResponseDTO result = policyRequestService.cancelPolicyRequest(requestId);
+        // The service throws BusinessException for approved policies
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            policyRequestService.cancelPolicyRequest(requestId)
+        );
 
-        assertFalse(result.isCancelled());
-        assertNull(result.getStatus());
-        assertEquals("Não é possível cancelar uma apólice já aprovada", result.getReason());
+        assertEquals("Cannot cancel approved policy", exception.getMessage());
+        assertEquals("CANNOT_CANCEL_APPROVED", exception.getErrorCode());
         verify(repository, never()).save(any(PolicyRequest.class));
         verify(eventPublisher, never()).publish(any(), any(), any());
     }
 
     @Test
     void testValidatePolicyRequestWithoutRiskAnalysis() {
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Correct status but no risk analysis
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
 
-        PolicyValidationResponseDTO result = policyRequestService.validatePolicyRequest(requestId);
+        // The service throws BusinessException for missing risk analysis
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+            policyRequestService.validatePolicyRequest(requestId)
+        );
         
-        assertFalse(result.isValidated());
-        assertEquals("Não é possível validar apólice sem análise de risco", result.getReason());
-        assertNull(result.getStatus());
+        assertEquals("Cannot validate policy without risk analysis", exception.getMessage());
+        assertEquals("MISSING_RISK_ANALYSIS", exception.getErrorCode());
     }
 
     @Test
@@ -336,9 +363,14 @@ class PolicyRequestServiceImplTest {
         RiskAnalysis riskAnalysis = new RiskAnalysis();
         riskAnalysis.setClassification(CustomerRiskType.REGULAR);
         policyRequest.setRiskAnalysis(riskAnalysis);
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Start with correct status for validation
         
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
+        
+        // Mock the status transition properly
+        when(policyStatusService.canTransitionTo(PolicyStatus.RECEIVED, PolicyStatus.VALIDATED))
+                .thenReturn(true);
 
         PolicyValidationResponseDTO result = policyRequestService.validatePolicyRequest(requestId);
 
@@ -354,6 +386,7 @@ class PolicyRequestServiceImplTest {
         riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
         policyRequest.setRiskAnalysis(riskAnalysis);
         policyRequest.setInsuredAmount(BigDecimal.valueOf(500000.00)); // Excede limite HIGH_RISK
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Start with correct status for validation
         
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
@@ -371,9 +404,14 @@ class PolicyRequestServiceImplTest {
         RiskAnalysis riskAnalysis = new RiskAnalysis();
         riskAnalysis.setClassification(CustomerRiskType.REGULAR);
         policyRequest.setRiskAnalysis(riskAnalysis);
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Start with correct status for validation
         
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
+        
+        // Mock the status transitions properly
+        when(policyStatusService.canTransitionTo(eq(PolicyStatus.RECEIVED), any(PolicyStatus.class)))
+                .thenReturn(true);
 
         int validatedCount = 0;
         for (InsuranceCategory category : InsuranceCategory.values()) {
@@ -396,9 +434,14 @@ class PolicyRequestServiceImplTest {
         RiskAnalysis riskAnalysis = new RiskAnalysis();
         riskAnalysis.setClassification(CustomerRiskType.HIGH_RISK);
         policyRequest.setRiskAnalysis(riskAnalysis);
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Start with correct status for validation
         
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
+        
+        // Mock the status transitions properly
+        when(policyStatusService.canTransitionTo(eq(PolicyStatus.RECEIVED), any(PolicyStatus.class)))
+                .thenReturn(true);
 
         int rejectedCount = 0;
         for (InsuranceCategory category : InsuranceCategory.values()) {
@@ -421,9 +464,14 @@ class PolicyRequestServiceImplTest {
         RiskAnalysis riskAnalysis = new RiskAnalysis();
         riskAnalysis.setClassification(CustomerRiskType.PREFERRED);
         policyRequest.setRiskAnalysis(riskAnalysis);
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Start with correct status for validation
         
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
+        
+        // Mock the status transitions properly
+        when(policyStatusService.canTransitionTo(eq(PolicyStatus.RECEIVED), any(PolicyStatus.class)))
+                .thenReturn(true);
 
         int validatedCount = 0;
         for (InsuranceCategory category : InsuranceCategory.values()) {
@@ -449,10 +497,14 @@ class PolicyRequestServiceImplTest {
         policyRequest.setCategory(InsuranceCategory.LIFE);
         policyRequest.setInsuredAmount(new BigDecimal("100000.00"));
         policyRequest.setRiskAnalysis(riskAnalysis);
-        policyRequest.setStatus(PolicyStatus.RECEIVED);
+        policyRequest.setStatus(PolicyStatus.RECEIVED); // Start with correct status for validation
         
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
+        
+        // Mock the status transitions properly
+        when(policyStatusService.canTransitionTo(eq(PolicyStatus.RECEIVED), any(PolicyStatus.class)))
+                .thenReturn(true);
 
         PolicyValidationResponseDTO result1 = policyRequestService.validatePolicyRequest(requestId);
         assertTrue(result1.isValidated(), "100K should be valid for LIFE with NO_INFORMATION");
@@ -470,6 +522,7 @@ class PolicyRequestServiceImplTest {
         when(repository.findById(requestId)).thenReturn(Optional.of(policyRequest));
         when(repository.save(any(PolicyRequest.class))).thenReturn(policyRequest);
 
+        // Test valid transitions first
         policyRequest.setStatus(PolicyStatus.RECEIVED);
         policyRequestService.updateStatus(requestId, PolicyStatus.VALIDATED);
         assertEquals(PolicyStatus.VALIDATED, policyRequest.getStatus());
@@ -481,6 +534,13 @@ class PolicyRequestServiceImplTest {
         policyRequest.setStatus(PolicyStatus.PENDING);
         policyRequestService.updateStatus(requestId, PolicyStatus.APPROVED);
         assertEquals(PolicyStatus.APPROVED, policyRequest.getStatus());
+
+        // Test invalid transitions by setting up specific invalid scenarios
+        reset(policyStatusService);
+        lenient().when(policyStatusService.canTransitionTo(any(PolicyStatus.class), any(PolicyStatus.class)))
+                .thenReturn(false);
+        lenient().doThrow(new IllegalStateException("Invalid transition"))
+                .when(policyStatusService).updatePolicyStatus(any(PolicyRequest.class), any(PolicyStatus.class));
 
         policyRequest.setStatus(PolicyStatus.REJECTED);
         assertThrows(IllegalStateException.class, () ->

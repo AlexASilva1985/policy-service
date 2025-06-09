@@ -86,95 +86,9 @@ public class PolicyRequest extends BaseEntity {
     @Column(name = "finished_at")
     private LocalDateTime finishedAt;
 
-    public void validate() {
-        if (customerId == null) {
-            throw new IllegalArgumentException("customerId is required");
-        }
-        if (productId == null) {
-            throw new IllegalArgumentException("productId is required");
-        }
-        if (category == null) {
-            throw new IllegalArgumentException("category is required");
-        }
-        if (salesChannel == null) {
-            throw new IllegalArgumentException("salesChannel is required");
-        }
-        if (paymentMethod == null) {
-            throw new IllegalArgumentException("paymentMethod is required");
-        }
-        if (totalMonthlyPremiumAmount == null || totalMonthlyPremiumAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("totalMonthlyPremiumAmount must be greater than zero");
-        }
-        if (insuredAmount == null || insuredAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("insuredAmount must be greater than zero");
-        }
-        if (coverages.isEmpty()) {
-            throw new IllegalArgumentException("At least one coverage is required");
-        }
-    }
-
-    public void updateStatus(PolicyStatus newStatus) {
-        if (newStatus == null) {
-            throw new IllegalArgumentException("New status cannot be null");
-        }
-
-        if (!canTransitionTo(newStatus)) {
-            throw new IllegalStateException("Invalid status transition from " + this.status + " to " + newStatus);
-        }
-
-        StatusHistory history = new StatusHistory();
-        history.setPolicyRequestId(this.getId());
-        history.setPreviousStatus(this.status);
-        history.setNewStatus(newStatus);
-        history.setChangedAt(LocalDateTime.now());
-        
-        this.statusHistory.add(history);
-        this.status = newStatus;
-
-        if (newStatus == PolicyStatus.APPROVED ||
-            newStatus == PolicyStatus.REJECTED ||
-            newStatus == PolicyStatus.CANCELLED) {
-            this.finishedAt = LocalDateTime.now();
-        }
-    }
-
-    public boolean canTransitionTo(PolicyStatus newStatus) {
-        if (this.status == null) {
-            return newStatus == PolicyStatus.RECEIVED;
-        }
-
-        return switch (this.status) {
-            case RECEIVED -> newStatus == PolicyStatus.VALIDATED ||
-                           newStatus == PolicyStatus.REJECTED ||
-                           newStatus == PolicyStatus.CANCELLED;
-            case VALIDATED -> newStatus == PolicyStatus.PENDING ||
-                            newStatus == PolicyStatus.REJECTED ||
-                            newStatus == PolicyStatus.CANCELLED;
-            case PENDING -> newStatus == PolicyStatus.APPROVED ||
-                          newStatus == PolicyStatus.REJECTED ||
-                          newStatus == PolicyStatus.CANCELLED;
-            case APPROVED -> false;
-            case REJECTED, CANCELLED -> false;
-        };
-    }
-
     public BigDecimal calculateTotalCoverageAmount() {
         return coverages.values()
                        .stream()
                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    public void setTotalMonthlyPremiumAmount(BigDecimal totalMonthlyPremiumAmount) {
-        if (totalMonthlyPremiumAmount == null || totalMonthlyPremiumAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("totalMonthlyPremiumAmount must be greater than zero");
-        }
-        this.totalMonthlyPremiumAmount = totalMonthlyPremiumAmount;
-    }
-
-    public void setInsuredAmount(BigDecimal insuredAmount) {
-        if (insuredAmount == null || insuredAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("insuredAmount must be greater than zero");
-        }
-        this.insuredAmount = insuredAmount;
     }
 } 

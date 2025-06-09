@@ -10,6 +10,7 @@ import com.insurance.dto.FraudAnalysisResponseDTO;
 import com.insurance.dto.PolicyCancelResponseDTO;
 import com.insurance.dto.PolicyRequestDTO;
 import com.insurance.dto.PolicyValidationResponseDTO;
+import com.insurance.exception.ExceptionHandler;
 import com.insurance.mapper.PolicyRequestMapper;
 import com.insurance.service.PolicyRequestService;
 import jakarta.persistence.EntityNotFoundException;
@@ -62,7 +63,7 @@ class PolicyRequestControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice()
+                .setControllerAdvice(new ExceptionHandler())
                 .build();
 
         policyId = UUID.randomUUID();
@@ -335,7 +336,7 @@ class PolicyRequestControllerTest {
         doNothing().when(service).processPayment(policyId);
 
         mockMvc.perform(post("/api/v1/policy/{id}/payment", policyId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(service).processPayment(policyId);
     }
@@ -377,7 +378,7 @@ class PolicyRequestControllerTest {
         doNothing().when(service).processSubscription(policyId);
 
         mockMvc.perform(post("/api/v1/policy/{id}/subscription", policyId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(service).processSubscription(policyId);
     }

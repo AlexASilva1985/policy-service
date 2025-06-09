@@ -160,7 +160,7 @@ class FraudAnalysisServiceImplTest {
         Field insuredAmountField = PolicyRequest.class.getDeclaredField("insuredAmount");
         insuredAmountField.setAccessible(true);
         insuredAmountField.set(policyRequest, null);
-        
+
         assertThrows(IllegalArgumentException.class, () ->
             fraudAnalysisService.analyzeFraud(policyRequest)
         );
@@ -184,7 +184,7 @@ class FraudAnalysisServiceImplTest {
         Field insuredAmountField = PolicyRequest.class.getDeclaredField("insuredAmount");
         insuredAmountField.setAccessible(true);
         insuredAmountField.set(policyRequest, new BigDecimal("-100000.00"));
-        
+
         assertThrows(IllegalArgumentException.class, () ->
             fraudAnalysisService.analyzeFraud(policyRequest)
         );
@@ -209,9 +209,9 @@ class FraudAnalysisServiceImplTest {
         for (InsuranceCategory category : InsuranceCategory.values()) {
             policyRequest.setCategory(category);
             policyRequest.setInsuredAmount(regularAmount);
-            
+
             RiskAnalysis result = fraudAnalysisService.analyzeFraud(policyRequest);
-            
+
             assertNotNull(result);
             assertEquals(CustomerRiskType.REGULAR, result.getClassification());
             assertNotNull(result.getAnalyzedAt());

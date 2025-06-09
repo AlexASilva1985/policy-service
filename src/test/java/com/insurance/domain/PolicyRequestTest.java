@@ -1,952 +1,440 @@
 package com.insurance.domain;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-
 import com.insurance.domain.enums.InsuranceCategory;
 import com.insurance.domain.enums.PaymentMethod;
 import com.insurance.domain.enums.PolicyStatus;
 import com.insurance.domain.enums.SalesChannel;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Nested;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.*;
+
+@DisplayName("PolicyRequest Entity Tests")
 class PolicyRequestTest {
 
     private PolicyRequest policyRequest;
     private UUID customerId;
     private UUID productId;
-    private Map<String, BigDecimal> coverages;
 
     @BeforeEach
     void setUp() {
         customerId = UUID.randomUUID();
         productId = UUID.randomUUID();
-
-        coverages = new HashMap<>();
-        coverages.put("COLLISION", new BigDecimal("30000.00"));
-        coverages.put("THEFT", new BigDecimal("20000.00"));
-
+        
         policyRequest = new PolicyRequest();
-        policyRequest.setId(UUID.randomUUID());
         policyRequest.setCustomerId(customerId);
         policyRequest.setProductId(productId);
         policyRequest.setCategory(InsuranceCategory.AUTO);
-        policyRequest.setSalesChannel(SalesChannel.BROKER);
-        policyRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        policyRequest.setTotalMonthlyPremiumAmount(new BigDecimal("500.00"));
-        policyRequest.setInsuredAmount(new BigDecimal("50000.00"));
-        policyRequest.setCoverages(coverages);
-        policyRequest.setAssistances(List.of("Roadside Assistance", "Glass Protection"));
-        policyRequest.setStatus(PolicyStatus.RECEIVED);
-    }
-
-    @Test
-    void testCreatePolicyRequestWithCorrectData() {
-        assertNotNull(policyRequest.getId());
-        assertEquals(customerId, policyRequest.getCustomerId());
-        assertEquals(productId, policyRequest.getProductId());
-        assertEquals(InsuranceCategory.AUTO, policyRequest.getCategory());
-        assertEquals(SalesChannel.BROKER, policyRequest.getSalesChannel());
-        assertEquals(PaymentMethod.CREDIT_CARD, policyRequest.getPaymentMethod());
-        assertEquals(new BigDecimal("500.00"), policyRequest.getTotalMonthlyPremiumAmount());
-        assertEquals(new BigDecimal("50000.00"), policyRequest.getInsuredAmount());
-        assertEquals(2, policyRequest.getCoverages().size());
-        assertEquals(2, policyRequest.getAssistances().size());
-        assertEquals(PolicyStatus.RECEIVED, policyRequest.getStatus());
-        assertTrue(policyRequest.getStatusHistory().isEmpty());
-    }
-
-    @Test
-    void testUpdateStatusAndCreateStatusHistory() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        
-        assertEquals(PolicyStatus.VALIDATED, policyRequest.getStatus());
-        assertEquals(1, policyRequest.getStatusHistory().size());
-        
-        StatusHistory lastHistory = policyRequest.getStatusHistory().get(0);
-        assertEquals(PolicyStatus.RECEIVED, lastHistory.getPreviousStatus());
-        assertEquals(PolicyStatus.VALIDATED, lastHistory.getNewStatus());
-        assertNotNull(lastHistory.getChangedAt());
-        assertTrue(lastHistory.getChangedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
-    }
-
-    @Test
-    void testAddRiskAnalysis() {
-        RiskAnalysis riskAnalysis = new RiskAnalysis();
-        riskAnalysis.setId(UUID.randomUUID());
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now());
-
-        policyRequest.setRiskAnalysis(riskAnalysis);
-
-        assertNotNull(policyRequest.getRiskAnalysis());
-        assertEquals(riskAnalysis.getId(), policyRequest.getRiskAnalysis().getId());
-    }
-
-    @Test
-    void testValidateRequiredFields() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertTrue(exception.getMessage().contains("customerId"));
-
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertTrue(exception.getMessage().contains("category"));
-    }
-
-    @Test
-    void testCalculateTotalCoverageAmount() {
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(new BigDecimal("50000.00"), total);
-    }
-
-    @Test
-    void testValidateStatusTransitions() {
-
-        assertDoesNotThrow(() -> {
-            policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        });
-        assertEquals(PolicyStatus.VALIDATED, policyRequest.getStatus());
-
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            policyRequest.updateStatus(PolicyStatus.RECEIVED);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testNotAllowInvalidAmounts() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.setTotalMonthlyPremiumAmount(BigDecimal.ZERO);
-        });
-        assertTrue(exception.getMessage().contains("greater than zero"));
-
-        exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.setInsuredAmount(new BigDecimal("-1.00"));
-        });
-        assertTrue(exception.getMessage().contains("greater than zero"));
-    }
-
-    @Test
-    void testFinishPolicyRequest() {
-
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        
-        assertNotNull(policyRequest.getFinishedAt());
-        assertTrue(policyRequest.getFinishedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
-    }
-
-    @Test
-    void testFinishPolicyRequestWithRejected() {
-
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.REJECTED);
-        
-        assertNotNull(policyRequest.getFinishedAt());
-        assertTrue(policyRequest.getFinishedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
-    }
-
-    @Test
-    void testFinishPolicyRequestWithCancelled() {
-
-        policyRequest.updateStatus(PolicyStatus.CANCELLED);
-        
-        assertNotNull(policyRequest.getFinishedAt());
-        assertTrue(policyRequest.getFinishedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
-    }
-
-    @Test
-    void testMultipleStatusTransitions() {
-
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        assertEquals(PolicyStatus.VALIDATED, policyRequest.getStatus());
-        assertEquals(1, policyRequest.getStatusHistory().size());
-        
-
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        assertEquals(PolicyStatus.PENDING, policyRequest.getStatus());
-        assertEquals(2, policyRequest.getStatusHistory().size());
-        
-
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        assertEquals(PolicyStatus.APPROVED, policyRequest.getStatus());
-        assertEquals(3, policyRequest.getStatusHistory().size());
-    }
-
-    @Test
-    void testInvalidStatusTransitionFromApproved() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            policyRequest.updateStatus(PolicyStatus.PENDING);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testInvalidStatusTransitionFromRejected() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.REJECTED);
-        
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            policyRequest.updateStatus(PolicyStatus.APPROVED);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testCanTransitionToMethods() {
-
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.VALIDATED));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.REJECTED));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.CANCELLED));
-
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.PENDING));
-
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.PENDING));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.REJECTED));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.CANCELLED));
-    }
-
-    @Test
-    void testCalculateTotalCoverageAmountWithNullCoverages() {
-        policyRequest.setCoverages(null);
-        Exception exception = assertThrows(NullPointerException.class, () -> {
-            policyRequest.calculateTotalCoverageAmount();
-        });
-        assertNotNull(exception);
-    }
-
-    @Test
-    void testCalculateTotalCoverageAmountWithEmptyCoverages() {
-        policyRequest.setCoverages(new HashMap<>());
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(BigDecimal.ZERO, total);
-    }
-
-    @Test
-    void testValidationWithAllRequiredFields() {
-        PolicyRequest validRequest = new PolicyRequest();
-        validRequest.setCustomerId(UUID.randomUUID());
-        validRequest.setProductId(UUID.randomUUID());
-        validRequest.setCategory(InsuranceCategory.AUTO);
-        validRequest.setSalesChannel(SalesChannel.BROKER);
-        validRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        validRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        validRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        validRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        assertDoesNotThrow(() -> validRequest.validate());
-    }
-
-    @Test
-    void testUpdateStatusWithNullStatus() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.updateStatus(null);
-        });
-        assertEquals("New status cannot be null", exception.getMessage());
-    }
-
-    @Test
-    void testToString() {
-        String toString = policyRequest.toString();
-        assertNotNull(toString);
-        assertTrue(toString.length() > 0);
-    }
-
-    @Test
-    void testInheritanceFromBaseEntity() {
-        assertTrue(policyRequest instanceof BaseEntity);
-
-        policyRequest.setCreatedBy("admin");
-        policyRequest.setUpdatedBy("system");
-        
-        assertEquals("admin", policyRequest.getCreatedBy());
-        assertEquals("system", policyRequest.getUpdatedBy());
-    }
-
-    @Test
-    void testValidateWithNullCustomerId() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("customerId is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullProductId() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("productId is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullCategory() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("category is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullSalesChannel() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("salesChannel is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullPaymentMethod() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("paymentMethod is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullTotalMonthlyPremiumAmount() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("totalMonthlyPremiumAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithZeroTotalMonthlyPremiumAmount() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.setTotalMonthlyPremiumAmount(BigDecimal.ZERO);
-        });
-        assertEquals("totalMonthlyPremiumAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullInsuredAmount() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setCoverages(Map.of("BASIC", new BigDecimal("5000.00")));
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("insuredAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithEmptyCoverages() {
-        PolicyRequest invalidRequest = new PolicyRequest();
-        invalidRequest.setCustomerId(UUID.randomUUID());
-        invalidRequest.setProductId(UUID.randomUUID());
-        invalidRequest.setCategory(InsuranceCategory.AUTO);
-        invalidRequest.setSalesChannel(SalesChannel.BROKER);
-        invalidRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        invalidRequest.setTotalMonthlyPremiumAmount(new BigDecimal("100.00"));
-        invalidRequest.setInsuredAmount(new BigDecimal("10000.00"));
-        invalidRequest.setCoverages(new HashMap<>());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            invalidRequest.validate();
-        });
-        assertEquals("At least one coverage is required", exception.getMessage());
-    }
-
-    @Test
-    void testSetTotalMonthlyPremiumAmountWithNullValue() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.setTotalMonthlyPremiumAmount(null);
-        });
-        assertEquals("totalMonthlyPremiumAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testSetTotalMonthlyPremiumAmountWithNegativeValue() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.setTotalMonthlyPremiumAmount(new BigDecimal("-50.00"));
-        });
-        assertEquals("totalMonthlyPremiumAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testSetInsuredAmountWithNullValue() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.setInsuredAmount(null);
-        });
-        assertEquals("insuredAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testSetInsuredAmountWithZeroValue() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            policyRequest.setInsuredAmount(BigDecimal.ZERO);
-        });
-        assertEquals("insuredAmount must be greater than zero", exception.getMessage());
-    }
-
-    @Test
-    void testCanTransitionToFromNullStatus() {
-        PolicyRequest newRequest = new PolicyRequest();
-        newRequest.setStatus(null);
-        
-        assertTrue(newRequest.canTransitionTo(PolicyStatus.RECEIVED));
-        assertDoesNotThrow(() -> newRequest.canTransitionTo(PolicyStatus.VALIDATED));
-        assertDoesNotThrow(() -> newRequest.canTransitionTo(PolicyStatus.REJECTED));
-    }
-
-    @Test
-    void testCanTransitionToFromValidatedStatus() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.PENDING));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.REJECTED));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.CANCELLED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.RECEIVED));
-    }
-
-    @Test
-    void testCanTransitionToFromPendingStatus() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.APPROVED));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.REJECTED));
-        assertTrue(policyRequest.canTransitionTo(PolicyStatus.CANCELLED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.VALIDATED));
-    }
-
-    @Test
-    void testCanTransitionToFromApprovedStatus() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.PENDING));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.REJECTED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.CANCELLED));
-    }
-
-    @Test
-    void testCanTransitionToFromRejectedStatus() {
-        policyRequest.updateStatus(PolicyStatus.REJECTED);
-        
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.APPROVED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.VALIDATED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.PENDING));
-    }
-
-    @Test
-    void testCanTransitionToFromCancelledStatus() {
-        policyRequest.updateStatus(PolicyStatus.CANCELLED);
-        
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.APPROVED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.VALIDATED));
-        assertDoesNotThrow(() -> policyRequest.canTransitionTo(PolicyStatus.PENDING));
-    }
-
-    @Test
-    void testCalculateTotalCoverageAmountWithSingleCoverage() {
-        Map<String, BigDecimal> singleCoverage = new HashMap<>();
-        singleCoverage.put("COLLISION", new BigDecimal("25000.00"));
-        policyRequest.setCoverages(singleCoverage);
-        
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(new BigDecimal("25000.00"), total);
-    }
-
-    @Test
-    void testCalculateTotalCoverageAmountWithMultipleCoverages() {
-        Map<String, BigDecimal> multipleCoverages = new HashMap<>();
-        multipleCoverages.put("COLLISION", new BigDecimal("30000.00"));
-        multipleCoverages.put("THEFT", new BigDecimal("20000.00"));
-        multipleCoverages.put("FIRE", new BigDecimal("15000.00"));
-        policyRequest.setCoverages(multipleCoverages);
-        
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(new BigDecimal("65000.00"), total);
-    }
-
-    @Test
-    void testCoveragesAndAssistancesManagement() {
-
-        Map<String, BigDecimal> newCoverages = new HashMap<>();
-        newCoverages.put("FIRE", new BigDecimal("15000.00"));
-        newCoverages.put("FLOOD", new BigDecimal("12000.00"));
-        policyRequest.setCoverages(newCoverages);
-        
-        assertEquals(2, policyRequest.getCoverages().size());
-        assertTrue(policyRequest.getCoverages().containsKey("FIRE"));
-        assertTrue(policyRequest.getCoverages().containsKey("FLOOD"));
-        
-        List<String> newAssistances = List.of("24h Towing", "Emergency Service", "Rental Car");
-        policyRequest.setAssistances(newAssistances);
-        
-        assertEquals(3, policyRequest.getAssistances().size());
-        assertTrue(policyRequest.getAssistances().contains("24h Towing"));
-        assertTrue(policyRequest.getAssistances().contains("Emergency Service"));
-        assertTrue(policyRequest.getAssistances().contains("Rental Car"));
-    }
-
-    @Test
-    void testDifferentInsuranceCategories() {
-
-        policyRequest.setCategory(InsuranceCategory.LIFE);
-        assertEquals(InsuranceCategory.LIFE, policyRequest.getCategory());
-        
-        policyRequest.setCategory(InsuranceCategory.RESIDENTIAL);
-        assertEquals(InsuranceCategory.RESIDENTIAL, policyRequest.getCategory());
-        
-        policyRequest.setCategory(InsuranceCategory.TRAVEL);
-        assertEquals(InsuranceCategory.TRAVEL, policyRequest.getCategory());
-    }
-
-    @Test
-    void testDifferentSalesChannels() {
-
-        policyRequest.setSalesChannel(SalesChannel.MOBILE);
-        assertEquals(SalesChannel.MOBILE, policyRequest.getSalesChannel());
-        
         policyRequest.setSalesChannel(SalesChannel.WEBSITE);
-        assertEquals(SalesChannel.WEBSITE, policyRequest.getSalesChannel());
-        
-        policyRequest.setSalesChannel(SalesChannel.CALL_CENTER);
-        assertEquals(SalesChannel.CALL_CENTER, policyRequest.getSalesChannel());
+        policyRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
+        policyRequest.setTotalMonthlyPremiumAmount(new BigDecimal("150.00"));
+        policyRequest.setInsuredAmount(new BigDecimal("50000.00"));
     }
 
-    @Test
-    void testDifferentPaymentMethods() {
+    @Nested
+    @DisplayName("Basic Property Tests")
+    class BasicPropertyTests {
 
-        policyRequest.setPaymentMethod(PaymentMethod.DEBIT_CARD);
-        assertEquals(PaymentMethod.DEBIT_CARD, policyRequest.getPaymentMethod());
-        
-        policyRequest.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
-        assertEquals(PaymentMethod.BANK_TRANSFER, policyRequest.getPaymentMethod());
-        
-        policyRequest.setPaymentMethod(PaymentMethod.PIX);
-        assertEquals(PaymentMethod.PIX, policyRequest.getPaymentMethod());
-    }
+        @Test
+        @DisplayName("Should create PolicyRequest with all required fields")
+        void shouldCreatePolicyRequestWithAllRequiredFields() {
+            assertThat(policyRequest).isNotNull();
+            assertThat(policyRequest.getCustomerId()).isEqualTo(customerId);
+            assertThat(policyRequest.getProductId()).isEqualTo(productId);
+            assertThat(policyRequest.getCategory()).isEqualTo(InsuranceCategory.AUTO);
+            assertThat(policyRequest.getSalesChannel()).isEqualTo(SalesChannel.WEBSITE);
+            assertThat(policyRequest.getPaymentMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+            assertThat(policyRequest.getTotalMonthlyPremiumAmount()).isEqualTo(new BigDecimal("150.00"));
+            assertThat(policyRequest.getInsuredAmount()).isEqualTo(new BigDecimal("50000.00"));
+        }
 
-    @Test
-    void testRiskAnalysisManagement() {
-        assertNull(policyRequest.getRiskAnalysis());
-        
-        RiskAnalysis riskAnalysis = new RiskAnalysis();
-        riskAnalysis.setId(UUID.randomUUID());
-        riskAnalysis.setAnalyzedAt(LocalDateTime.now());
-        
-        policyRequest.setRiskAnalysis(riskAnalysis);
-        assertNotNull(policyRequest.getRiskAnalysis());
-        assertEquals(riskAnalysis, policyRequest.getRiskAnalysis());
-        
-        policyRequest.setRiskAnalysis(null);
-        assertNull(policyRequest.getRiskAnalysis());
-    }
+        @Test
+        @DisplayName("Should have default status as RECEIVED")
+        void shouldHaveDefaultStatusAsReceived() {
+            PolicyRequest newRequest = new PolicyRequest();
+            
+            assertThat(newRequest.getStatus()).isEqualTo(PolicyStatus.RECEIVED);
+        }
 
-    @Test
-    void testStatusHistoryOrdering() {
+        @Test
+        @DisplayName("Should allow updating status")
+        void shouldAllowUpdatingStatus() {
+            policyRequest.setStatus(PolicyStatus.APPROVED);
+            
+            assertThat(policyRequest.getStatus()).isEqualTo(PolicyStatus.APPROVED);
+        }
 
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        
-        assertEquals(3, policyRequest.getStatusHistory().size());
-        
-        List<StatusHistory> history = policyRequest.getStatusHistory();
-
-        assertTrue(history.get(0).getNewStatus() == PolicyStatus.APPROVED ||
-                  history.get(1).getNewStatus() == PolicyStatus.APPROVED ||
-                  history.get(2).getNewStatus() == PolicyStatus.APPROVED);
-    }
-
-    @Test
-    void testFinishedAtTimestamp() {
-        assertNull(policyRequest.getFinishedAt());
-        
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        
-        assertNotNull(policyRequest.getFinishedAt());
-        assertTrue(policyRequest.getFinishedAt().isBefore(LocalDateTime.now().plusSeconds(1)));
-        assertTrue(policyRequest.getFinishedAt().isAfter(LocalDateTime.now().minusSeconds(5)));
-    }
-
-    @Test
-    void testPolicyRequestDefaultValues() {
-        PolicyRequest newRequest = new PolicyRequest();
-        
-        assertEquals(PolicyStatus.RECEIVED, newRequest.getStatus());
-        assertNotNull(newRequest.getCoverages());
-        assertTrue(newRequest.getCoverages().isEmpty());
-        assertNotNull(newRequest.getAssistances());
-        assertTrue(newRequest.getAssistances().isEmpty());
-        assertNotNull(newRequest.getStatusHistory());
-        assertTrue(newRequest.getStatusHistory().isEmpty());
-        assertNull(newRequest.getRiskAnalysis());
-        assertNull(newRequest.getFinishedAt());
-    }
-
-    @Test
-    void testPolicyRequestWithLargeAmounts() {
-        PolicyRequest largeAmountRequest = new PolicyRequest();
-        largeAmountRequest.setCustomerId(UUID.randomUUID());
-        largeAmountRequest.setProductId(UUID.randomUUID());
-        largeAmountRequest.setCategory(InsuranceCategory.LIFE);
-        largeAmountRequest.setSalesChannel(SalesChannel.BROKER);
-        largeAmountRequest.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
-        
-        BigDecimal largePremium = new BigDecimal("5000.00");
-        BigDecimal largeInsuredAmount = new BigDecimal("1000000.00");
-        
-        largeAmountRequest.setTotalMonthlyPremiumAmount(largePremium);
-        largeAmountRequest.setInsuredAmount(largeInsuredAmount);
-        largeAmountRequest.setCoverages(Map.of("LIFE_COVERAGE", largeInsuredAmount));
-        
-        assertEquals(largePremium, largeAmountRequest.getTotalMonthlyPremiumAmount());
-        assertEquals(largeInsuredAmount, largeAmountRequest.getInsuredAmount());
-        assertEquals(largeInsuredAmount, largeAmountRequest.calculateTotalCoverageAmount());
-    }
-
-    @Test
-    void testUpdateStatusHistoryWithNullPolicyRequestId() {
-        // Teste quando há problema na criação do histórico
-        PolicyRequest requestWithNullId = new PolicyRequest();
-        requestWithNullId.setCustomerId(UUID.randomUUID());
-        requestWithNullId.setProductId(UUID.randomUUID());
-        requestWithNullId.setCategory(InsuranceCategory.AUTO);
-        requestWithNullId.setSalesChannel(SalesChannel.BROKER);
-        requestWithNullId.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        requestWithNullId.setTotalMonthlyPremiumAmount(new BigDecimal("500.00"));
-        requestWithNullId.setInsuredAmount(new BigDecimal("50000.00"));
-        requestWithNullId.setCoverages(Map.of("COLLISION", new BigDecimal("30000.00")));
-        // Note: ID is null
-        
-        // Deve falhar porque StatusHistory.setPolicyRequestId não aceita null
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            requestWithNullId.updateStatus(PolicyStatus.VALIDATED);
-        });
-        assertTrue(exception.getMessage().contains("policyRequestId cannot be null"));
-    }
-
-    @Test
-    void testStatusTransitionEdgeCases() {
-        // Teste transição direta para REJECTED de RECEIVED
-        PolicyRequest request1 = new PolicyRequest();
-        request1.setStatus(PolicyStatus.RECEIVED);
-        assertTrue(request1.canTransitionTo(PolicyStatus.REJECTED));
-        
-        // Teste transição direta para CANCELLED de RECEIVED
-        assertTrue(request1.canTransitionTo(PolicyStatus.CANCELLED));
-        
-        // Teste transição direta para CANCELLED de VALIDATED
-        request1.setStatus(PolicyStatus.VALIDATED);
-        assertTrue(request1.canTransitionTo(PolicyStatus.CANCELLED));
-        
-        // Teste transição direta para CANCELLED de PENDING
-        request1.setStatus(PolicyStatus.PENDING);
-        assertTrue(request1.canTransitionTo(PolicyStatus.CANCELLED));
-    }
-
-    @Test
-    void testCanTransitionToWithAllPossibleStatuses() {
-        PolicyRequest request = new PolicyRequest();
-        
-        // Teste todas as transições possíveis para cada status
-        for (PolicyStatus fromStatus : PolicyStatus.values()) {
-            request.setStatus(fromStatus);
-            for (PolicyStatus toStatus : PolicyStatus.values()) {
-                // Simplesmente chama o método para garantir cobertura
-                boolean canTransition = request.canTransitionTo(toStatus);
-                // Log interno para cobertura
-                System.out.println("From " + fromStatus + " to " + toStatus + ": " + canTransition);
-            }
+        @Test
+        @DisplayName("Should set and get finishedAt timestamp")
+        void shouldSetAndGetFinishedAtTimestamp() {
+            LocalDateTime finishedTime = LocalDateTime.now();
+            
+            policyRequest.setFinishedAt(finishedTime);
+            
+            assertThat(policyRequest.getFinishedAt()).isEqualTo(finishedTime);
         }
     }
 
-    @Test
-    void testEqualsAndHashCodeFromBaseEntity() {
-        PolicyRequest request1 = new PolicyRequest();
-        UUID testId = UUID.randomUUID();
-        request1.setId(testId);
-        
-        PolicyRequest request2 = new PolicyRequest();
-        request2.setId(testId); // Mesmo ID
-        
-        // Como usa @Data do Lombok, equals compara todos os campos
-        // Vamos definir todos os campos iguais para testar
-        request1.setCustomerId(UUID.randomUUID());
-        request1.setProductId(UUID.randomUUID());
-        request1.setCategory(InsuranceCategory.AUTO);
-        request1.setSalesChannel(SalesChannel.BROKER);
-        request1.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        request1.setTotalMonthlyPremiumAmount(new BigDecimal("500.00"));
-        request1.setInsuredAmount(new BigDecimal("50000.00"));
-        request1.setCoverages(Map.of("COLLISION", new BigDecimal("30000.00")));
-        
-        // Copiar todos os campos para request2
-        request2.setCustomerId(request1.getCustomerId());
-        request2.setProductId(request1.getProductId());
-        request2.setCategory(request1.getCategory());
-        request2.setSalesChannel(request1.getSalesChannel());
-        request2.setPaymentMethod(request1.getPaymentMethod());
-        request2.setTotalMonthlyPremiumAmount(request1.getTotalMonthlyPremiumAmount());
-        request2.setInsuredAmount(request1.getInsuredAmount());
-        request2.setCoverages(new HashMap<>(request1.getCoverages()));
-        
-        // Agora devem ser iguais
-        assertEquals(request1, request2);
-        assertEquals(request1.hashCode(), request2.hashCode());
-        
-        // Teste com IDs diferentes
-        PolicyRequest request3 = new PolicyRequest();
-        request3.setId(UUID.randomUUID()); // ID diferente
-        
-        assertNotEquals(request1, request3);
-    }
+    @Nested
+    @DisplayName("Coverage Calculation Tests")
+    class CoverageCalculationTests {
 
-    @Test
-    void testCoveragesWithZeroValues() {
-        Map<String, BigDecimal> coveragesWithZero = new HashMap<>();
-        coveragesWithZero.put("COLLISION", new BigDecimal("30000.00"));
-        coveragesWithZero.put("THEFT", BigDecimal.ZERO);
-        
-        policyRequest.setCoverages(coveragesWithZero);
-        
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(new BigDecimal("30000.00"), total);
-    }
-
-    @Test
-    void testCoveragesWithNegativeValues() {
-        Map<String, BigDecimal> coveragesWithNegative = new HashMap<>();
-        coveragesWithNegative.put("COLLISION", new BigDecimal("30000.00"));
-        coveragesWithNegative.put("DEDUCTIBLE", new BigDecimal("-5000.00"));
-        
-        policyRequest.setCoverages(coveragesWithNegative);
-        
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(new BigDecimal("25000.00"), total);
-    }
-
-    @Test
-    void testStatusTransitionToSameStatus() {
-        // Teste tentativa de transição para o mesmo status
-        policyRequest.setStatus(PolicyStatus.RECEIVED);
-        
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            policyRequest.updateStatus(PolicyStatus.RECEIVED);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testUpdateStatusMultipleTimesToSameStatus() {
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        
-        // Tentar atualizar novamente para VALIDATED (mesmo status)
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        });
-        assertTrue(exception.getMessage().contains("Invalid status transition"));
-    }
-
-    @Test
-    void testAllEnumValuesInPolicyRequest() {
-        // Teste todas as categorias de seguro
-        for (InsuranceCategory category : InsuranceCategory.values()) {
-            PolicyRequest request = new PolicyRequest();
-            request.setCategory(category);
-            assertEquals(category, request.getCategory());
+        @Test
+        @DisplayName("Should calculate total coverage amount with multiple coverages")
+        void shouldCalculateTotalCoverageAmountWithMultipleCoverages() {
+            Map<String, BigDecimal> coverages = new HashMap<>();
+            coverages.put("Collision", new BigDecimal("10000.00"));
+            coverages.put("Comprehensive", new BigDecimal("15000.00"));
+            coverages.put("Liability", new BigDecimal("25000.00"));
+            
+            policyRequest.setCoverages(coverages);
+            
+            BigDecimal totalCoverage = policyRequest.calculateTotalCoverageAmount();
+            
+            assertThat(totalCoverage).isEqualTo(new BigDecimal("50000.00"));
         }
-        
-        // Teste todos os canais de venda
-        for (SalesChannel channel : SalesChannel.values()) {
-            PolicyRequest request = new PolicyRequest();
-            request.setSalesChannel(channel);
-            assertEquals(channel, request.getSalesChannel());
+
+        @Test
+        @DisplayName("Should return zero when no coverages are present")
+        void shouldReturnZeroWhenNoCoveragesArePresent() {
+            policyRequest.setCoverages(new HashMap<>());
+            
+            BigDecimal totalCoverage = policyRequest.calculateTotalCoverageAmount();
+            
+            assertThat(totalCoverage).isEqualTo(BigDecimal.ZERO);
         }
-        
-        // Teste todos os métodos de pagamento
-        for (PaymentMethod method : PaymentMethod.values()) {
-            PolicyRequest request = new PolicyRequest();
-            request.setPaymentMethod(method);
-            assertEquals(method, request.getPaymentMethod());
+
+        @Test
+        @DisplayName("Should handle single coverage correctly")
+        void shouldHandleSingleCoverageCorrectly() {
+            Map<String, BigDecimal> coverages = new HashMap<>();
+            coverages.put("Collision", new BigDecimal("12000.00"));
+            
+            policyRequest.setCoverages(coverages);
+            
+            BigDecimal totalCoverage = policyRequest.calculateTotalCoverageAmount();
+            
+            assertThat(totalCoverage).isEqualTo(new BigDecimal("12000.00"));
+        }
+
+        @Test
+        @DisplayName("Should handle decimal coverage amounts correctly")
+        void shouldHandleDecimalCoverageAmountsCorrectly() {
+            Map<String, BigDecimal> coverages = new HashMap<>();
+            coverages.put("Coverage1", new BigDecimal("1000.50"));
+            coverages.put("Coverage2", new BigDecimal("2000.75"));
+            coverages.put("Coverage3", new BigDecimal("500.25"));
+            
+            policyRequest.setCoverages(coverages);
+            
+            BigDecimal totalCoverage = policyRequest.calculateTotalCoverageAmount();
+            
+            assertThat(totalCoverage).isEqualTo(new BigDecimal("3501.50"));
         }
     }
 
-    @Test
-    void testValidateWithNullCoveragesMap() {
-        PolicyRequest request = new PolicyRequest();
-        request.setCustomerId(UUID.randomUUID());
-        request.setProductId(UUID.randomUUID());
-        request.setCategory(InsuranceCategory.AUTO);
-        request.setSalesChannel(SalesChannel.BROKER);
-        request.setPaymentMethod(PaymentMethod.CREDIT_CARD);
-        request.setTotalMonthlyPremiumAmount(new BigDecimal("500.00"));
-        request.setInsuredAmount(new BigDecimal("50000.00"));
-        request.setCoverages(null); // Null coverages
-        
-        Exception exception = assertThrows(NullPointerException.class, () -> {
-            request.validate();
-        });
-        // NullPointerException porque tenta chamar isEmpty() em null
+    @Nested
+    @DisplayName("Collections Tests")
+    class CollectionsTests {
+
+        @Test
+        @DisplayName("Should initialize coverages as empty HashMap")
+        void shouldInitializeCoveragesAsEmptyHashMap() {
+            PolicyRequest newRequest = new PolicyRequest();
+            
+            assertThat(newRequest.getCoverages()).isNotNull();
+            assertThat(newRequest.getCoverages()).isEmpty();
+            assertThat(newRequest.getCoverages()).isInstanceOf(HashMap.class);
+        }
+
+        @Test
+        @DisplayName("Should initialize assistances as empty ArrayList")
+        void shouldInitializeAssistancesAsEmptyArrayList() {
+            PolicyRequest newRequest = new PolicyRequest();
+            
+            assertThat(newRequest.getAssistances()).isNotNull();
+            assertThat(newRequest.getAssistances()).isEmpty();
+            assertThat(newRequest.getAssistances()).isInstanceOf(List.class);
+        }
+
+        @Test
+        @DisplayName("Should initialize statusHistory as empty ArrayList")
+        void shouldInitializeStatusHistoryAsEmptyArrayList() {
+            PolicyRequest newRequest = new PolicyRequest();
+            
+            assertThat(newRequest.getStatusHistory()).isNotNull();
+            assertThat(newRequest.getStatusHistory()).isEmpty();
+            assertThat(newRequest.getStatusHistory()).isInstanceOf(List.class);
+        }
+
+        @Test
+        @DisplayName("Should add and retrieve assistances")
+        void shouldAddAndRetrieveAssistances() {
+            policyRequest.getAssistances().add("24h Towing");
+            policyRequest.getAssistances().add("Roadside Assistance");
+            policyRequest.getAssistances().add("Car Rental");
+            
+            assertThat(policyRequest.getAssistances()).hasSize(3);
+            assertThat(policyRequest.getAssistances()).containsExactly(
+                "24h Towing", 
+                "Roadside Assistance", 
+                "Car Rental"
+            );
+        }
+
+        @Test
+        @DisplayName("Should add and retrieve coverages")
+        void shouldAddAndRetrieveCoverages() {
+            policyRequest.getCoverages().put("Collision", new BigDecimal("15000"));
+            policyRequest.getCoverages().put("Comprehensive", new BigDecimal("20000"));
+            
+            assertThat(policyRequest.getCoverages()).hasSize(2);
+            assertThat(policyRequest.getCoverages().get("Collision")).isEqualTo(new BigDecimal("15000"));
+            assertThat(policyRequest.getCoverages().get("Comprehensive")).isEqualTo(new BigDecimal("20000"));
+        }
     }
 
-    @Test
-    void testCalculateTotalCoverageWithStreamOperations() {
-        // Teste com coverages vazias para garantir que o stream funciona
-        policyRequest.setCoverages(new HashMap<>());
-        BigDecimal total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(BigDecimal.ZERO, total);
-        
-        // Teste com um coverage
-        Map<String, BigDecimal> singleCoverage = new HashMap<>();
-        singleCoverage.put("SINGLE", new BigDecimal("1000.00"));
-        policyRequest.setCoverages(singleCoverage);
-        total = policyRequest.calculateTotalCoverageAmount();
-        assertEquals(new BigDecimal("1000.00"), total);
+    @Nested
+    @DisplayName("Enum Tests")
+    class EnumTests {
+
+        @Test
+        @DisplayName("Should set and get all InsuranceCategory values")
+        void shouldSetAndGetAllInsuranceCategoryValues() {
+            policyRequest.setCategory(InsuranceCategory.AUTO);
+            assertThat(policyRequest.getCategory()).isEqualTo(InsuranceCategory.AUTO);
+            
+            policyRequest.setCategory(InsuranceCategory.RESIDENTIAL);
+            assertThat(policyRequest.getCategory()).isEqualTo(InsuranceCategory.RESIDENTIAL);
+            
+            policyRequest.setCategory(InsuranceCategory.LIFE);
+            assertThat(policyRequest.getCategory()).isEqualTo(InsuranceCategory.LIFE);
+            
+            policyRequest.setCategory(InsuranceCategory.HEALTH);
+            assertThat(policyRequest.getCategory()).isEqualTo(InsuranceCategory.HEALTH);
+            
+            policyRequest.setCategory(InsuranceCategory.TRAVEL);
+            assertThat(policyRequest.getCategory()).isEqualTo(InsuranceCategory.TRAVEL);
+        }
+
+        @Test
+        @DisplayName("Should set and get all SalesChannel values")
+        void shouldSetAndGetAllSalesChannelValues() {
+            policyRequest.setSalesChannel(SalesChannel.WEBSITE);
+            assertThat(policyRequest.getSalesChannel()).isEqualTo(SalesChannel.WEBSITE);
+            
+            policyRequest.setSalesChannel(SalesChannel.MOBILE);
+            assertThat(policyRequest.getSalesChannel()).isEqualTo(SalesChannel.MOBILE);
+            
+            policyRequest.setSalesChannel(SalesChannel.BROKER);
+            assertThat(policyRequest.getSalesChannel()).isEqualTo(SalesChannel.BROKER);
+            
+            policyRequest.setSalesChannel(SalesChannel.CALL_CENTER);
+            assertThat(policyRequest.getSalesChannel()).isEqualTo(SalesChannel.CALL_CENTER);
+            
+            policyRequest.setSalesChannel(SalesChannel.BANK);
+            assertThat(policyRequest.getSalesChannel()).isEqualTo(SalesChannel.BANK);
+        }
+
+        @Test
+        @DisplayName("Should set and get all PaymentMethod values")
+        void shouldSetAndGetAllPaymentMethodValues() {
+            policyRequest.setPaymentMethod(PaymentMethod.CREDIT_CARD);
+            assertThat(policyRequest.getPaymentMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+            
+            policyRequest.setPaymentMethod(PaymentMethod.DEBIT_CARD);
+            assertThat(policyRequest.getPaymentMethod()).isEqualTo(PaymentMethod.DEBIT_CARD);
+            
+            policyRequest.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+            assertThat(policyRequest.getPaymentMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+            
+            policyRequest.setPaymentMethod(PaymentMethod.PIX);
+            assertThat(policyRequest.getPaymentMethod()).isEqualTo(PaymentMethod.PIX);
+        }
+
+        @Test
+        @DisplayName("Should set and get all PolicyStatus values")
+        void shouldSetAndGetAllPolicyStatusValues() {
+            policyRequest.setStatus(PolicyStatus.RECEIVED);
+            assertThat(policyRequest.getStatus()).isEqualTo(PolicyStatus.RECEIVED);
+            
+            policyRequest.setStatus(PolicyStatus.PENDING);
+            assertThat(policyRequest.getStatus()).isEqualTo(PolicyStatus.PENDING);
+            
+            policyRequest.setStatus(PolicyStatus.APPROVED);
+            assertThat(policyRequest.getStatus()).isEqualTo(PolicyStatus.APPROVED);
+            
+            policyRequest.setStatus(PolicyStatus.REJECTED);
+            assertThat(policyRequest.getStatus()).isEqualTo(PolicyStatus.REJECTED);
+            
+            policyRequest.setStatus(PolicyStatus.CANCELLED);
+            assertThat(policyRequest.getStatus()).isEqualTo(PolicyStatus.CANCELLED);
+        }
     }
 
-    @Test
-    void testStatusHistoryTimestampConsistency() {
-        LocalDateTime beforeUpdate = LocalDateTime.now();
-        
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        
-        LocalDateTime afterUpdate = LocalDateTime.now();
-        
-        StatusHistory history = policyRequest.getStatusHistory().get(0);
-        assertNotNull(history.getChangedAt());
-        assertTrue(history.getChangedAt().isAfter(beforeUpdate.minusSeconds(1)));
-        assertTrue(history.getChangedAt().isBefore(afterUpdate.plusSeconds(1)));
+    @Nested
+    @DisplayName("Relationship Tests")
+    class RelationshipTests {
+
+        @Test
+        @DisplayName("Should set and get RiskAnalysis")
+        void shouldSetAndGetRiskAnalysis() {
+            RiskAnalysis riskAnalysis = new RiskAnalysis();
+            
+            policyRequest.setRiskAnalysis(riskAnalysis);
+            
+            assertThat(policyRequest.getRiskAnalysis()).isSameAs(riskAnalysis);
+        }
+
+        @Test
+        @DisplayName("Should allow null RiskAnalysis")
+        void shouldAllowNullRiskAnalysis() {
+            policyRequest.setRiskAnalysis(null);
+            
+            assertThat(policyRequest.getRiskAnalysis()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should add StatusHistory entries")
+        void shouldAddStatusHistoryEntries() {
+            StatusHistory history1 = new StatusHistory();
+            StatusHistory history2 = new StatusHistory();
+            
+            policyRequest.getStatusHistory().add(history1);
+            policyRequest.getStatusHistory().add(history2);
+            
+            assertThat(policyRequest.getStatusHistory()).hasSize(2);
+            assertThat(policyRequest.getStatusHistory()).containsExactly(history1, history2);
+        }
     }
 
-    @Test
-    void testFinishedAtOnlySetForFinalStatuses() {
-        // Teste que finishedAt não é setado para status intermediários
-        policyRequest.updateStatus(PolicyStatus.VALIDATED);
-        assertNull(policyRequest.getFinishedAt());
-        
-        policyRequest.updateStatus(PolicyStatus.PENDING);
-        assertNull(policyRequest.getFinishedAt());
-        
-        // Agora teste que é setado para status finais
-        policyRequest.updateStatus(PolicyStatus.APPROVED);
-        assertNotNull(policyRequest.getFinishedAt());
+    @Nested
+    @DisplayName("BigDecimal Amount Tests")
+    class BigDecimalAmountTests {
+
+        @Test
+        @DisplayName("Should handle zero amounts")
+        void shouldHandleZeroAmounts() {
+            policyRequest.setInsuredAmount(BigDecimal.ZERO);
+            policyRequest.setTotalMonthlyPremiumAmount(BigDecimal.ZERO);
+            
+            assertThat(policyRequest.getInsuredAmount()).isEqualTo(BigDecimal.ZERO);
+            assertThat(policyRequest.getTotalMonthlyPremiumAmount()).isEqualTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("Should handle large amounts")
+        void shouldHandleLargeAmounts() {
+            BigDecimal largeAmount = new BigDecimal("999999999.99");
+            
+            policyRequest.setInsuredAmount(largeAmount);
+            policyRequest.setTotalMonthlyPremiumAmount(largeAmount);
+            
+            assertThat(policyRequest.getInsuredAmount()).isEqualTo(largeAmount);
+            assertThat(policyRequest.getTotalMonthlyPremiumAmount()).isEqualTo(largeAmount);
+        }
+
+        @Test
+        @DisplayName("Should preserve decimal precision")
+        void shouldPreserveDecimalPrecision() {
+            BigDecimal preciseAmount = new BigDecimal("123.456789");
+            
+            policyRequest.setInsuredAmount(preciseAmount);
+            
+            assertThat(policyRequest.getInsuredAmount()).isEqualTo(preciseAmount);
+            assertThat(policyRequest.getInsuredAmount().scale()).isEqualTo(6);
+        }
     }
 
-    @Test
-    void testPolicyRequestDataAccessors() {
-        // Teste todos os getters/setters para cobertura completa
-        PolicyRequest request = new PolicyRequest();
-        
-        // Teste com valores diversos
-        UUID testId = UUID.randomUUID();
-        UUID testCustomerId = UUID.randomUUID();
-        UUID testProductId = UUID.randomUUID();
-        LocalDateTime testTime = LocalDateTime.now();
-        
-        request.setId(testId);
-        request.setCustomerId(testCustomerId);
-        request.setProductId(testProductId);
-        request.setCreatedAt(testTime);
-        request.setUpdatedAt(testTime);
-        request.setFinishedAt(testTime);
-        
-        assertEquals(testId, request.getId());
-        assertEquals(testCustomerId, request.getCustomerId());
-        assertEquals(testProductId, request.getProductId());
-        assertEquals(testTime, request.getCreatedAt());
-        assertEquals(testTime, request.getUpdatedAt());
-        assertEquals(testTime, request.getFinishedAt());
+    @Nested
+    @DisplayName("Lombok Generated Methods Tests")
+    class LombokGeneratedMethodsTests {
+
+        @Test
+        @DisplayName("Should implement equals and hashCode correctly")
+        void shouldImplementEqualsAndHashCodeCorrectly() {
+            PolicyRequest request1 = new PolicyRequest();
+            request1.setId(UUID.randomUUID());
+            request1.setCustomerId(customerId);
+            request1.setCategory(InsuranceCategory.AUTO);
+            
+            PolicyRequest request2 = new PolicyRequest();
+            request2.setId(request1.getId());
+            request2.setCustomerId(customerId);
+            request2.setCategory(InsuranceCategory.AUTO);
+            
+            PolicyRequest request3 = new PolicyRequest();
+            request3.setId(UUID.randomUUID()); // Different ID
+            request3.setCustomerId(customerId);
+            request3.setCategory(InsuranceCategory.AUTO);
+            
+            assertThat(request1).isEqualTo(request2);
+            assertThat(request1).isNotEqualTo(request3);
+            assertThat(request1.hashCode()).isEqualTo(request2.hashCode());
+        }
+
+        @Test
+        @DisplayName("Should implement toString correctly")
+        void shouldImplementToStringCorrectly() {
+            String toString = policyRequest.toString();
+            
+            assertThat(toString).contains("PolicyRequest");
+            assertThat(toString).contains(customerId.toString());
+            assertThat(toString).contains(productId.toString());
+            assertThat(toString).contains("AUTO");
+        }
+    }
+
+    @Nested
+    @DisplayName("Edge Cases and Null Handling")
+    class EdgeCasesAndNullHandlingTests {
+
+        @Test
+        @DisplayName("Should handle null UUIDs")
+        void shouldHandleNullUUIDs() {
+            policyRequest.setCustomerId(null);
+            policyRequest.setProductId(null);
+            
+            assertThat(policyRequest.getCustomerId()).isNull();
+            assertThat(policyRequest.getProductId()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should handle null BigDecimal amounts")
+        void shouldHandleNullBigDecimalAmounts() {
+            policyRequest.setInsuredAmount(null);
+            policyRequest.setTotalMonthlyPremiumAmount(null);
+            
+            assertThat(policyRequest.getInsuredAmount()).isNull();
+            assertThat(policyRequest.getTotalMonthlyPremiumAmount()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should handle calculateTotalCoverageAmount with null map")
+        void shouldHandleCalculateTotalCoverageAmountWithNullMap() {
+            policyRequest.setCoverages(null);
+            
+            assertThatThrownBy(() -> policyRequest.calculateTotalCoverageAmount())
+                .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("Should handle empty coverages map in calculation")
+        void shouldHandleEmptyCoveragesMapInCalculation() {
+            policyRequest.setCoverages(new HashMap<>());
+            
+            BigDecimal result = policyRequest.calculateTotalCoverageAmount();
+            
+            assertThat(result).isEqualTo(BigDecimal.ZERO);
+        }
     }
 } 

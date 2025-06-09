@@ -14,8 +14,13 @@ public class EventPublisher {
     private final RabbitTemplate rabbitTemplate;
 
     public void publish(String exchange, String routingKey, PolicyRequestEvent event) {
-        log.info("Publishing event {} to exchange {} with routing key {}", 
-                 event.getEventType(), exchange, routingKey);
-        rabbitTemplate.convertAndSend(exchange, routingKey, event);
+        try {
+            log.info("Publishing event of type {} to exchange {} with routing key {}", 
+                    event.getEventType(), exchange, routingKey);
+            rabbitTemplate.convertAndSend(exchange, routingKey, event);
+        } catch (Exception e) {
+            log.error("Failed to publish event: {}", event, e);
+            throw new RuntimeException("Failed to publish event", e);
+        }
     }
 } 

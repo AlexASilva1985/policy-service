@@ -7,7 +7,6 @@ import com.insurance.domain.enums.CustomerRiskType;
 import com.insurance.domain.enums.InsuranceCategory;
 import com.insurance.service.FraudAnalysisService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +17,6 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class FraudAnalysisServiceImpl implements FraudAnalysisService {
 
     @Override
@@ -35,16 +33,12 @@ public class FraudAnalysisServiceImpl implements FraudAnalysisService {
             
             List<RiskOccurrence> occurrences = generateOccurrences(request, classification);
             riskAnalysis.setOccurrences(occurrences);
-            
-            log.info("Fraud analysis completed for policy request: {} with classification: {} and {} occurrences", 
-                    request.getId(), riskAnalysis.getClassification(), riskAnalysis.getOccurrences().size());
-            
+
             return riskAnalysis;
             
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Error performing fraud analysis for policy request: {}", request.getId(), e);
             throw new RuntimeException("Failed to analyze fraud for policy request: " + request.getId(), e);
         }
     }

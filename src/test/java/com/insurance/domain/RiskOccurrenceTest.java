@@ -1,286 +1,210 @@
 package com.insurance.domain;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.time.LocalDateTime;
+import com.insurance.service.RiskOccurrenceValidationService;
+import com.insurance.service.impl.RiskOccurrenceValidationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Test class for RiskOccurrence entity after refactoring to follow Single Responsibility Principle.
+ * The entity now only handles JPA mapping, while business logic is tested through RiskOccurrenceValidationService.
+ */
 class RiskOccurrenceTest {
 
     private RiskOccurrence riskOccurrence;
+    private RiskOccurrenceValidationService validationService;
+    private LocalDateTime now;
 
     @BeforeEach
     void setUp() {
+        validationService = new RiskOccurrenceValidationServiceImpl();
         riskOccurrence = new RiskOccurrence();
+        now = LocalDateTime.now();
     }
 
+    // ========== ENTITY MAPPING TESTS ==========
+
     @Test
-    void testSuccessfulRiskOccurrenceCreation() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(1);
-        
+    void testCreateValidRiskOccurrence() {
         riskOccurrence.setType("FRAUD");
         riskOccurrence.setDescription("Suspicious activity detected");
-        riskOccurrence.setCreatedAt(now);
-        riskOccurrence.setUpdatedAt(now);
+        riskOccurrence.setCreatedAt(now.minusHours(1));
+        riskOccurrence.setUpdatedAt(now.minusHours(1));
 
         assertEquals("FRAUD", riskOccurrence.getType());
         assertEquals("Suspicious activity detected", riskOccurrence.getDescription());
-        assertEquals(now, riskOccurrence.getCreatedAt());
-        assertEquals(now, riskOccurrence.getUpdatedAt());
+        assertEquals(now.minusHours(1), riskOccurrence.getCreatedAt());
+        assertEquals(now.minusHours(1), riskOccurrence.getUpdatedAt());
     }
 
     @Test
-    void testSetTypeWithValidValue() {
-        riskOccurrence.setType("IDENTITY_THEFT");
-        assertEquals("IDENTITY_THEFT", riskOccurrence.getType());
-    }
-
-    @Test
-    void testSetTypeWithNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setType(null)
-        );
-        assertEquals("type cannot be empty", exception.getMessage());
-    }
-
-    @Test
-    void testSetTypeWithEmptyString() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setType("")
-        );
-        assertEquals("type cannot be empty", exception.getMessage());
-    }
-
-    @Test
-    void testSetTypeWithWhitespaceOnly() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setType("   ")
-        );
-        assertEquals("type cannot be empty", exception.getMessage());
-    }
-
-    @Test
-    void testSetDescriptionWithValidValue() {
-        String description = "Detailed description of the risk occurrence";
-        riskOccurrence.setDescription(description);
-        assertEquals(description, riskOccurrence.getDescription());
-    }
-
-    @Test
-    void testSetDescriptionWithNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setDescription(null)
-        );
-        assertEquals("description cannot be empty", exception.getMessage());
-    }
-
-    @Test
-    void testSetDescriptionWithEmptyString() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setDescription("")
-        );
-        assertEquals("description cannot be empty", exception.getMessage());
-    }
-
-    @Test
-    void testSetDescriptionWithWhitespaceOnly() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setDescription("   ")
-        );
-        assertEquals("description cannot be empty", exception.getMessage());
-    }
-
-    @Test
-    void testSetCreatedAtWithValidDate() {
-        LocalDateTime pastDate = LocalDateTime.now().minusDays(1);
-        riskOccurrence.setCreatedAt(pastDate);
-        assertEquals(pastDate, riskOccurrence.getCreatedAt());
-    }
-
-    @Test
-    void testSetCreatedAtWithCurrentDate() {
-        LocalDateTime currentDate = LocalDateTime.now();
-        riskOccurrence.setCreatedAt(currentDate);
-        assertEquals(currentDate, riskOccurrence.getCreatedAt());
-    }
-
-    @Test
-    void testSetCreatedAtWithNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setCreatedAt(null)
-        );
-        assertEquals("createdAt cannot be null", exception.getMessage());
-    }
-
-    @Test
-    void testSetCreatedAtWithFutureDate() {
-        LocalDateTime futureDate = LocalDateTime.now().plusHours(1);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setCreatedAt(futureDate)
-        );
-        assertEquals("createdAt cannot be a future date", exception.getMessage());
-    }
-
-    @Test
-    void testSetUpdatedAtWithValidDate() {
-        LocalDateTime pastDate = LocalDateTime.now().minusDays(1);
-        LocalDateTime laterDate = LocalDateTime.now().minusHours(1);
+    void testEntitySettersAndGetters() {
+        RiskOccurrence testOccurrence = new RiskOccurrence();
         
-        riskOccurrence.setCreatedAt(pastDate);
-        riskOccurrence.setUpdatedAt(laterDate);
+        // Test all setters and getters work without business validation
+        testOccurrence.setType(""); // Empty type - no validation in entity
+        assertEquals("", testOccurrence.getType());
         
-        assertEquals(laterDate, riskOccurrence.getUpdatedAt());
+        testOccurrence.setDescription("   "); // Empty description - no validation in entity
+        assertEquals("   ", testOccurrence.getDescription());
+        
+        LocalDateTime futureTime = LocalDateTime.now().plusDays(1); // Future time - no validation in entity
+        testOccurrence.setCreatedAt(futureTime);
+        testOccurrence.setUpdatedAt(futureTime);
+        assertEquals(futureTime, testOccurrence.getCreatedAt());
+        assertEquals(futureTime, testOccurrence.getUpdatedAt());
     }
 
     @Test
-    void testSetUpdatedAtWithNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setUpdatedAt(null)
-        );
-        assertEquals("updatedAt cannot be null", exception.getMessage());
+    void testPrePersistHook() {
+        RiskOccurrence newOccurrence = new RiskOccurrence();
+        assertNull(newOccurrence.getCreatedAt());
+        assertNull(newOccurrence.getUpdatedAt());
+        
+        newOccurrence.onCreate();
+        assertNotNull(newOccurrence.getCreatedAt());
+        assertNotNull(newOccurrence.getUpdatedAt());
+        assertEquals(newOccurrence.getCreatedAt(), newOccurrence.getUpdatedAt());
     }
 
     @Test
-    void testSetUpdatedAtWithFutureDate() {
-        LocalDateTime futureDate = LocalDateTime.now().plusHours(1);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setUpdatedAt(futureDate)
-        );
-        assertEquals("updatedAt cannot be a future date", exception.getMessage());
-    }
-
-    @Test
-    void testSetUpdatedAtBeforeCreatedAt() {
-        LocalDateTime createdAt = LocalDateTime.now().minusHours(1);
-        LocalDateTime updatedAt = LocalDateTime.now().minusHours(2);
+    void testPreUpdateHook() {
+        riskOccurrence.setCreatedAt(now.minusHours(1));
+        riskOccurrence.setUpdatedAt(now.minusHours(1));
         
-        riskOccurrence.setCreatedAt(createdAt);
+        LocalDateTime originalUpdatedAt = riskOccurrence.getUpdatedAt();
         
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.setUpdatedAt(updatedAt)
-        );
-        assertEquals("updatedAt cannot be before createdAt", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithValidData() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(1);
-        
-        riskOccurrence.setType("FRAUD");
-        riskOccurrence.setDescription("Test description");
-        riskOccurrence.setCreatedAt(now);
-        riskOccurrence.setUpdatedAt(now);
-
-        // Should not throw any exception
-        riskOccurrence.validate();
-    }
-
-    @Test
-    void testValidateWithNullType() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(1);
-        
-        riskOccurrence.setDescription("Test description");
-        riskOccurrence.setCreatedAt(now);
-        riskOccurrence.setUpdatedAt(now);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.validate()
-        );
-        assertEquals("type is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullDescription() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(1);
-        
-        riskOccurrence.setType("FRAUD");
-        riskOccurrence.setCreatedAt(now);
-        riskOccurrence.setUpdatedAt(now);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.validate()
-        );
-        assertEquals("description is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullCreatedAt() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(1);
-        
-        riskOccurrence.setType("FRAUD");
-        riskOccurrence.setDescription("Test description");
-        riskOccurrence.setUpdatedAt(now);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.validate()
-        );
-        assertEquals("createdAt is required", exception.getMessage());
-    }
-
-    @Test
-    void testValidateWithNullUpdatedAt() {
-        LocalDateTime now = LocalDateTime.now().minusMinutes(1);
-        
-        riskOccurrence.setType("FRAUD");
-        riskOccurrence.setDescription("Test description");
-        riskOccurrence.setCreatedAt(now);
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
-            riskOccurrence.validate()
-        );
-        assertEquals("updatedAt is required", exception.getMessage());
-    }
-
-    @Test
-    void testOnCreate() {
-        riskOccurrence.onCreate();
-        
-        assertNotNull(riskOccurrence.getCreatedAt());
-        assertNotNull(riskOccurrence.getUpdatedAt());
-        assertEquals(riskOccurrence.getCreatedAt(), riskOccurrence.getUpdatedAt());
-    }
-
-    @Test
-    void testOnUpdate() {
-        LocalDateTime oldUpdatedAt = LocalDateTime.now().minusHours(1);
-        riskOccurrence.setCreatedAt(oldUpdatedAt);
-        riskOccurrence.setUpdatedAt(oldUpdatedAt);
-        
-        // Wait a bit to ensure time difference
-        try {
-            Thread.sleep(1);
-        } catch (InterruptedException e) {
-            // Ignore
-        }
+        // Simulate a small delay
+        try { Thread.sleep(10); } catch (InterruptedException e) { /* ignore */ }
         
         riskOccurrence.onUpdate();
+        assertTrue(riskOccurrence.getUpdatedAt().isAfter(originalUpdatedAt));
+    }
+
+    // ========== BUSINESS LOGIC TESTS (Via RiskOccurrenceValidationService) ==========
+
+    @Test
+    void testTypeValidationViaService() {
+        // Valid types
+        assertDoesNotThrow(() -> validationService.validateType("FRAUD"));
+        assertDoesNotThrow(() -> validationService.validateType("SUSPICIOUS_ACTIVITY"));
         
-        assertTrue(riskOccurrence.getUpdatedAt().isAfter(oldUpdatedAt));
+        // Invalid types
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateType(null));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateType(""));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateType("   "));
     }
 
     @Test
-    void testInheritanceFromBaseEntity() {
+    void testDescriptionValidationViaService() {
+        // Valid descriptions
+        assertDoesNotThrow(() -> validationService.validateDescription("Valid description"));
+        assertDoesNotThrow(() -> validationService.validateDescription("Another valid description"));
+        
+        // Invalid descriptions
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateDescription(null));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateDescription(""));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateDescription("   "));
+    }
+
+    @Test
+    void testTimestampValidationViaService() {
+        // Valid timestamps
+        assertDoesNotThrow(() -> validationService.validateCreatedAt(now.minusHours(1)));
+        assertDoesNotThrow(() -> validationService.validateUpdatedAt(now.minusHours(1), now.minusHours(2)));
+        
+        // Invalid timestamps
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateCreatedAt(null));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateCreatedAt(now.plusHours(1))); // Future time
+            
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateUpdatedAt(null, now.minusHours(1)));
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateUpdatedAt(now.minusHours(1), now)); // Updated before created
+    }
+
+    @Test
+    void testCompleteValidationViaService() {
+        // Valid risk occurrence
+        riskOccurrence.setType("FRAUD");
+        riskOccurrence.setDescription("Suspicious activity detected");
+        riskOccurrence.setCreatedAt(now.minusHours(1));
+        riskOccurrence.setUpdatedAt(now.minusHours(1));
+        
+        assertDoesNotThrow(() -> validationService.validateRiskOccurrence(riskOccurrence));
+        
+        // Invalid risk occurrence - missing required fields
+        RiskOccurrence invalidOccurrence = new RiskOccurrence();
+        assertThrows(IllegalArgumentException.class, () -> 
+            validationService.validateRiskOccurrence(invalidOccurrence));
+    }
+
+    // ========== INTEGRATION TESTS ==========
+
+    @Test
+    void testCompleteWorkflowWithService() {
+        // Build valid risk occurrence step by step with validation
+        RiskOccurrence workflowOccurrence = new RiskOccurrence();
+        workflowOccurrence.setType("IDENTITY_THEFT");
+        workflowOccurrence.setDescription("Customer identity documents could not be verified");
+        workflowOccurrence.setCreatedAt(now.minusDays(1));
+        workflowOccurrence.setUpdatedAt(now.minusHours(1));
+        
+        // Validate individual components
+        assertDoesNotThrow(() -> validationService.validateType(workflowOccurrence.getType()));
+        assertDoesNotThrow(() -> validationService.validateDescription(workflowOccurrence.getDescription()));
+        assertDoesNotThrow(() -> validationService.validateCreatedAt(workflowOccurrence.getCreatedAt()));
+        assertDoesNotThrow(() -> validationService.validateUpdatedAt(workflowOccurrence.getUpdatedAt(), workflowOccurrence.getCreatedAt()));
+        
+        // Validate complete occurrence
+        assertDoesNotThrow(() -> validationService.validateRiskOccurrence(workflowOccurrence));
+    }
+
+    @Test
+    void testEntityInheritanceFromBaseEntity() {
+        // Test inheritance structure
         assertTrue(riskOccurrence instanceof BaseEntity);
         
-        // Test inherited methods are accessible
-        riskOccurrence.setCreatedBy("admin");
-        riskOccurrence.setUpdatedBy("system");
+        // Test that we can set/get BaseEntity fields
+        UUID testId = UUID.randomUUID();
+        riskOccurrence.setId(testId);
+        assertEquals(testId, riskOccurrence.getId());
         
-        assertEquals("admin", riskOccurrence.getCreatedBy());
-        assertEquals("system", riskOccurrence.getUpdatedBy());
+        String testUser = "test-user";
+        riskOccurrence.setCreatedBy(testUser);
+        assertEquals(testUser, riskOccurrence.getCreatedBy());
+        
+        riskOccurrence.setUpdatedBy(testUser);
+        assertEquals(testUser, riskOccurrence.getUpdatedBy());
     }
 
     @Test
-    void testToString() {
-        riskOccurrence.setType("FRAUD");
-        riskOccurrence.setDescription("Test description");
+    void testVariousRiskOccurrenceTypes() {
+        String[] riskTypes = {
+            "FRAUD", "IDENTITY_THEFT", "MONEY_LAUNDERING", 
+            "SUSPICIOUS_ACTIVITY", "DOCUMENT_FORGERY", "CREDIT_ABUSE"
+        };
         
-        String toString = riskOccurrence.toString();
-        assertNotNull(toString);
-        assertTrue(toString.length() > 0);
+        for (String type : riskTypes) {
+            RiskOccurrence testOccurrence = new RiskOccurrence();
+            testOccurrence.setType(type);
+            assertEquals(type, testOccurrence.getType());
+            
+            // Validate through service
+            assertDoesNotThrow(() -> validationService.validateType(type));
+        }
     }
 } 

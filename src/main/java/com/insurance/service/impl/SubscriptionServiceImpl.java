@@ -7,13 +7,11 @@ import com.insurance.infrastructure.messaging.config.RabbitMQConfig;
 import com.insurance.infrastructure.messaging.service.EventPublisher;
 import com.insurance.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class SubscriptionServiceImpl implements SubscriptionService {
 
     private final EventPublisher eventPublisher;
@@ -23,8 +21,6 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     public void processSubscription(PolicyRequest request) {
         validateRequest(request);
 
-        log.info("Processing subscription for policy request: {}", request.getId());
-        
         request.setStatus(PolicyStatus.APPROVED);
         
         eventPublisher.publish(

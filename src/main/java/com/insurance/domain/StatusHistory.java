@@ -12,6 +12,9 @@ import java.util.UUID;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+/**
+ * StatusHistory entity representing a status change record in the database.
+ */
 @Entity
 @Table(name = "status_history")
 @Data
@@ -33,72 +36,6 @@ public class StatusHistory extends BaseEntity {
     private LocalDateTime changedAt;
 
     private String reason;
-
-    public void setPolicyRequestId(UUID policyRequestId) {
-        if (policyRequestId == null) {
-            throw new IllegalArgumentException("policyRequestId cannot be null");
-        }
-        this.policyRequestId = policyRequestId;
-    }
-
-    public void setPreviousStatus(PolicyStatus previousStatus) {
-        if (previousStatus == null) {
-            throw new IllegalArgumentException("previousStatus cannot be null");
-        }
-        this.previousStatus = previousStatus;
-    }
-
-    public void setNewStatus(PolicyStatus newStatus) {
-        if (newStatus == null) {
-            throw new IllegalArgumentException("newStatus cannot be null");
-        }
-        if (this.previousStatus != null && newStatus == this.previousStatus) {
-            throw new IllegalArgumentException("newStatus cannot be the same as previousStatus");
-        }
-        if (this.previousStatus != null && !isValidStatusTransition(this.previousStatus, newStatus)) {
-            throw new IllegalStateException("Invalid status transition from " + this.previousStatus + " to " + newStatus);
-        }
-        this.newStatus = newStatus;
-    }
-
-    private boolean isValidStatusTransition(PolicyStatus from, PolicyStatus to) {
-        switch (from) {
-            case RECEIVED:
-                return to == PolicyStatus.VALIDATED ||
-                       to == PolicyStatus.REJECTED ||
-                       to == PolicyStatus.CANCELLED;
-            case VALIDATED:
-                return to == PolicyStatus.PENDING ||
-                       to == PolicyStatus.REJECTED ||
-                       to == PolicyStatus.CANCELLED;
-            case PENDING:
-                return to == PolicyStatus.APPROVED ||
-                       to == PolicyStatus.REJECTED ||
-                       to == PolicyStatus.CANCELLED;
-            case APPROVED:
-                return false;
-            case REJECTED:
-            case CANCELLED:
-                return false;
-            default:
-                return false;
-        }
-    }
-
-    public void validate() {
-        if (policyRequestId == null) {
-            throw new IllegalArgumentException("policyRequestId is required");
-        }
-        if (previousStatus == null) {
-            throw new IllegalArgumentException("previousStatus is required");
-        }
-        if (newStatus == null) {
-            throw new IllegalArgumentException("newStatus is required");
-        }
-        if (changedAt == null) {
-            throw new IllegalArgumentException("changedAt is required");
-        }
-    }
 
     @PrePersist
     public void onCreate() {
